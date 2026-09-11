@@ -399,3 +399,66 @@
 .lp-footer-worth strong {
   color: var(--growth);
 }
+
+/* ---- Curve-draw verdict ------------------------------------------------------ */
+
+/*
+ * Amber, not red. Being 35% off is a calibration reading, not a failure — and in
+ * a product where the adjacent screens are about the user's own debt, an alarm
+ * colour on "you guessed wrong" adds shame to a moment that should feel like a
+ * discovery.
+ */
+.lp-draw-verdict {
+  font: var(--t-title-1);
+  letter-spacing: -0.02em;
+  color: var(--spark);
+}
+
+.lp-draw-verdict[data-close] {
+  color: var(--growth);
+}
+
+.lp-share-note {
+  font: var(--t-caption);
+  color: var(--label-3);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ---- The commitment ---------------------------------------------------------- */
+
+.lp-commit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r-md);
+}
+
+.lp-commit-fixed {
+  font: var(--t-subhead);
+  color: var(--label-2);
+}
+
+/*
+ * A textarea rather than an input: these lines wrap, and a single-line field that
+ * scrolls horizontally is unusable on a phone. Auto-sizing rows keeps the whole
+ * sentence visible while it is being edited.
+ */
+.lp-commit-field {
+  width: 100%;
+  resize: none;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--fill-3);
+  color: var(--label);
+  font: var(--t-callout);
+  line-height: 1.4;
+  box-shadow: inset 0 0 0 1px var(--separator);
+}
+
+.lp-commit-field:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--growth);
+  outline: none;
+}

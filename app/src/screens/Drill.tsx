@@ -4,30 +4,40 @@ import { Screen } from '../ui/Screen'
 import { BackButton } from '../ui/NavStack'
 import { Button } from '../ui/Button'
 import { Icon } from '../ui/Icon'
+import { useNav } from '../ui/NavStack'
 import { useStore } from '../state/store'
 import { DRILLS } from '../data/drills'
-import { drillIndex, drillNumber, glyph, MAX_ATTEMPTS, shareResult } from '../lib/daily'
+import { drillIndex, drillNumber, MAX_ATTEMPTS } from '../lib/daily'
 import { dayKey } from '../lib/format'
 import { haptic } from '../lib/haptics'
 import { spring } from '../lib/motion'
 import './Drill.css'
 
 /**
- * The Daily Drill.
+ * One question a day.
  *
- * One question, the same one for everyone, three attempts. The design points that
- * matter:
+ * A teaching surface, not a growth loop. It once had a Wordle-style glyph to
+ * share, and that was cut on a simple information-theoretic argument: three
+ * attempts at a four-option question has three possible outcomes, so the glyph
+ * carries almost no signal, the modal result is a perfect score, and it only
+ * reads as a brag to someone who already recognises the format. Wordle's grid
+ * works because it encodes five letters across six rows. This does not, and
+ * shipping it would have been cargo-culting the shape without the substance.
+ * The share artifact is the Gap Card from a drawn curve instead.
  *
- *  - **A wrong answer teaches immediately.** The option you picked explains why it
- *    was tempting, before you try again. For most players the near-miss is the
+ * What remains is the part that was always doing the work:
+ *
+ *  - **A wrong answer teaches immediately.** The option you picked explains why
+ *    it was tempting, before you try again. For most people the near-miss is the
  *    thing they remember, so that is where the content goes.
- *  - **The reveal shows the arithmetic either way.** Losing still has to be worth
- *    the sixty seconds, or people stop coming.
- *  - **Sharing discloses nothing.** Squares say how many tries, never which option.
- *    A result that cannot spoil the puzzle is a result people paste into group chats.
+ *  - **The reveal shows the arithmetic either way**, so losing is still worth the
+ *    sixty seconds.
+ *  - **No streak and no cadence pressure.** Missing a day costs nothing, because
+ *    there is no daily-repetition skill here to protect.
  */
 export function DrillScreen() {
   const { state, recordDrillAttempt } = useStore()
+  const nav = useNav()
   const today = dayKey()
   const number = drillNumber(today)
   const drill = useMemo(() => DRILLS[drillIndex(number, DRILLS.length)], [number])
@@ -41,7 +51,6 @@ export function DrillScreen() {
   // Which options the player has already ruled out this session.
   const [tried, setTried] = useState<number[]>([])
   const [shakeIndex, setShakeIndex] = useState<number | null>(null)
-  const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
 
   const pick = (i: number) => {
     if (finished || tried.includes(i)) return
@@ -56,18 +65,6 @@ export function DrillScreen() {
     }
   }
 
-  const onShare = async () => {
-    haptic('light')
-    const result = await shareResult({
-      number,
-      attempts,
-      solved,
-      streak: state.streak.current,
-    })
-    setShareState(result)
-    if (result !== 'failed') haptic('success')
-  }
-
   const remaining = MAX_ATTEMPTS - attempts.length
 
   return (
@@ -75,14 +72,6 @@ export function DrillScreen() {
       title={`Drill #${number}`}
       inlineTitle
       left={<BackButton label="Today" />}
-      right={
-        state.streak.current > 0 ? (
-          <span className="drill-streak">
-            <Icon name="flame" size={15} />
-            {state.streak.current}
-          </span>
-        ) : undefined
-      }
       noTabBar
     >
       <div className="drill">
@@ -157,39 +146,14 @@ export function DrillScreen() {
               animate={{ opacity: 1, y: 0 }}
               transition={spring.nav}
             >
-              <div className="drill-verdict">
-                <span className="drill-glyph" aria-hidden="true">
-                  {glyph({ number, attempts, solved, streak: state.streak.current })}
-                </span>
-                <span className="drill-score num">
-                  {solved ? `${attempts.length}/${MAX_ATTEMPTS}` : `X/${MAX_ATTEMPTS}`}
-                </span>
-              </div>
-
               <div className="drill-reveal">
                 <p className="drill-reveal-label">The arithmetic</p>
                 <p className="drill-reveal-body selectable">{drill.reveal}</p>
               </div>
 
-              <Button
-                block
-                size="lg"
-                variant="secondary"
-                icon={<Icon name="share" size={18} />}
-                onClick={onShare}
-                feedback={null}
-              >
-                {shareState === 'copied'
-                  ? 'Copied'
-                  : shareState === 'shared'
-                    ? 'Shared'
-                    : 'Share your result'}
+              <Button block size="lg" variant="secondary" onClick={() => nav.pop()}>
+                Done
               </Button>
-
-              <p className="drill-share-note">
-                Your result is three squares and a streak. It contains no dollar amount, and it
-                does not give the answer away.
-              </p>
             </motion.div>
           )}
         </AnimatePresence>

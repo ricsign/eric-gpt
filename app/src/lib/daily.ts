@@ -1,16 +1,17 @@
 /**
- * The Daily Drill: one question, the same one for everybody, every day.
+ * One question a day, the same one for everybody.
  *
- * This is the app's growth loop, and its design is constrained by one hard fact
- * about this category: money is the most taboo personal data on the internet. Any
- * share artifact containing a dollar figure of the user's own — net worth, salary,
- * debt, balance — does not get shared, however good it looks in a design review.
+ * Deliberately *not* a growth loop. An earlier version shipped a Wordle-style
+ * glyph to share and it was cut on an information-theoretic argument: three
+ * attempts at a four-option question yields three distinguishable outcomes, so
+ * the glyph encodes almost nothing, the modal result is a perfect score, and it
+ * reads as a brag only to someone who already knows the format. Wordle's grid
+ * travels because it encodes five letters across six rows of three states. This
+ * does not, and shipping the shape without the substance would have been
+ * cargo-culting.
  *
- * So the shared artifact contains no personal financial information at all. It is a
- * Wordle-style glyph: how many tries you took, and your streak. Pure performance,
- * zero disclosure. The question is identical worldwide so a group chat can compare,
- * and the result string carries no tracking link, because a link turns a result into
- * an ad and people stop pasting it.
+ * What survives is the useful part: a shared question everyone gets on the same
+ * day, so it can be argued about, with the arithmetic revealed either way.
  */
 
 import { dayKey } from './format'
@@ -42,71 +43,3 @@ export function drillIndex(n: number, bankSize: number): number {
 }
 
 export const MAX_ATTEMPTS = 3
-
-export interface DrillResult {
-  number: number
-  /** One entry per attempt taken, in order. */
-  attempts: boolean[]
-  solved: boolean
-  streak: number
-}
-
-/**
- * The shareable glyph.
- *
- * Deliberately spoiler-free: the squares say how many tries were taken, never which
- * option was picked, so pasting it into a group chat cannot ruin the puzzle for
- * anyone who has not played. That property is the entire reason Wordle's grid
- * travelled, and it is why this is the one finance share artifact with no taboo
- * attached to it.
- */
-export function glyph(result: DrillResult): string {
-  return result.attempts.map((ok) => (ok ? '🟩' : '⬛')).join('')
-}
-
-export interface ShareOptions {
-  /** Bare domain, on its own line. Never a tracking URL — that reads as spam. */
-  domain?: string
-}
-
-/**
- * Builds the exact string that goes on the clipboard.
- *
- * No URL with query parameters, no UTM tags, no "I scored X, beat me!" copy. A
- * bare domain on its own line is what Wordle settled on after removing its link,
- * and it is what makes the paste feel like a person rather than a referral.
- */
-export function shareText(result: DrillResult, { domain = 'compound.money' }: ShareOptions = {}): string {
-  const score = result.solved ? `${result.attempts.length}/${MAX_ATTEMPTS}` : `X/${MAX_ATTEMPTS}`
-  const streak = result.streak > 1 ? ` · ${result.streak}🔥` : ''
-  return `Compound #${result.number} · ${score}${streak}\n${glyph(result)}\n${domain}`
-}
-
-/**
- * Copies the result, preferring the native share sheet on a phone.
- *
- * `navigator.share` is what makes this feel like an app rather than a website — it
- * opens iMessage, WhatsApp and the rest directly, which is exactly where money gets
- * discussed. Clipboard is the fallback, and the caller shows a confirmation either way.
- */
-export async function shareResult(result: DrillResult): Promise<'shared' | 'copied' | 'failed'> {
-  const text = shareText(result)
-
-  if (typeof navigator !== 'undefined' && navigator.share) {
-    try {
-      await navigator.share({ text })
-      return 'shared'
-    } catch (err) {
-      // AbortError means the user dismissed the sheet: that is not a failure, and
-      // silently falling back to the clipboard would be surprising.
-      if (err instanceof Error && err.name === 'AbortError') return 'failed'
-    }
-  }
-
-  try {
-    await navigator.clipboard.writeText(text)
-    return 'copied'
-  } catch {
-    return 'failed'
-  }
-}

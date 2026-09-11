@@ -144,3 +144,54 @@
   color: var(--label-2);
   line-height: 1.55;
 }
+
+/* ---- Calibration --------------------------------------------------------------
+ * The only metric in the app. Rendered small and quiet on purpose: it is a
+ * competence signal, not a trophy, and it goes down rather than up.
+ */
+
+.you-calibration {
+  margin: 0 var(--gutter) var(--s-6);
+  padding: var(--s-5);
+  background: var(--surface);
+  border-radius: var(--r-md);
+  color: var(--growth);
+}
+
+.you-calibration-label {
+  font: var(--t-caption-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label-2);
+}
+
+.you-calibration-value {
+  font: var(--t-large-title);
+  font-size: 44px;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--growth);
+}
+
+.you-calibration-sub {
+  font: var(--t-footnote);
+  color: var(--label-2);
+}
+
+.you-calibration-empty {
+  font: var(--t-subhead);
+  color: var(--label-2);
+  line-height: 1.5;
+  margin-top: var(--s-1);
+}
+
+.you-spark {
+  width: 100%;
+  height: 34px;
+  margin-top: var(--s-3);
+  /* Error falling means the line descends, which is the right visual for a
+     number you want to go down. */
+  transform: scaleY(-1);
+  color: var(--growth);
+  opacity: 0.7;
+}

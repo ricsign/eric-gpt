@@ -63,7 +63,7 @@ await tap('button:has-text("Take me in")')
 console.log('app')
 await shot('07-today')
 
-await tap('.card:has-text("Daily drill")', 'drill card')
+await tap('.today-section:has-text("One question") .card', 'drill card')
 await shot('08-drill')
 
 // Keep answering until the drill resolves, so the run works whichever position
@@ -79,10 +79,34 @@ await shot('10-drill-result')
 await tap('button:has-text("Today")', 'back')
 
 console.log('lesson')
-await tap('.today-section:has-text("Next for you") .card')
+await tap('.today-section:has-text("Draw this one next") .card')
 await shot('11-lesson-anchor')
 await tap('button:has-text("Continue")')
 await shot('12-lesson-probe')
+
+// Exercise the wedge: draw a straight line across the canvas, which is the
+// canonical wrong answer and the case the whole product is built around.
+const canvas = page.locator('.curve-canvas')
+if (await canvas.count()) {
+  const box = await canvas.first().boundingBox()
+  if (box) {
+    const y0 = box.y + box.height * 0.92
+    await page.mouse.move(box.x + 14, y0)
+    await page.mouse.down()
+    for (let i = 1; i <= 24; i++) {
+      const f = i / 24
+      await page.mouse.move(box.x + 14 + f * (box.width - 28), y0 - f * box.height * 0.5)
+      await page.waitForTimeout(12)
+    }
+    await page.mouse.up()
+    await page.waitForTimeout(300)
+    await shot('12b-curve-drawn')
+    await tap("button:has-text(\"That's my guess\")", 'commit curve')
+    await page.waitForTimeout(1400)
+    await shot('13-curve-revealed')
+  }
+}
+
 const lockIn = page.locator('button:has-text("Lock it in")')
 if (await lockIn.count()) {
   await lockIn.first().click()

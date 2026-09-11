@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drillIndex, drillNumber, glyph, MAX_ATTEMPTS, shareText, EPOCH } from './daily'
+import { drillIndex, drillNumber, EPOCH } from './daily'
 
 describe('drillNumber', () => {
   it('the epoch is puzzle 1', () => {
@@ -50,54 +50,5 @@ describe('drillIndex', () => {
 
   it('survives an empty bank rather than dividing by zero', () => {
     expect(drillIndex(5, 0)).toBe(0)
-  })
-})
-
-describe('the share string', () => {
-  it('reports the attempt it was solved on', () => {
-    const text = shareText({ number: 212, attempts: [false, true], solved: true, streak: 1 })
-    expect(text).toContain('#212')
-    expect(text).toContain(`2/${MAX_ATTEMPTS}`)
-  })
-
-  it('marks an unsolved drill with X', () => {
-    const text = shareText({
-      number: 9,
-      attempts: [false, false, false],
-      solved: false,
-      streak: 0,
-    })
-    expect(text).toContain(`X/${MAX_ATTEMPTS}`)
-  })
-
-  it('shows the streak only once it is worth showing', () => {
-    const one = shareText({ number: 1, attempts: [true], solved: true, streak: 1 })
-    const many = shareText({ number: 1, attempts: [true], solved: true, streak: 14 })
-    expect(one).not.toContain('🔥')
-    expect(many).toContain('14🔥')
-  })
-
-  it('carries a bare domain and no tracking link', () => {
-    const text = shareText({ number: 5, attempts: [true], solved: true, streak: 3 })
-    expect(text).toContain('compound.money')
-    expect(text).not.toContain('http')
-    expect(text).not.toContain('utm')
-    expect(text).not.toContain('?')
-  })
-
-  it('discloses nothing about the user or the answer', () => {
-    const text = shareText({ number: 5, attempts: [false, false, true], solved: true, streak: 3 })
-    // Spoiler-free is the whole design: squares say how many tries, never which
-    // option was chosen. And there is no dollar figure anywhere.
-    expect(text).not.toMatch(/\$/)
-    expect(glyph({ number: 5, attempts: [false, false, true], solved: true, streak: 3 })).toBe(
-      '⬛⬛🟩',
-    )
-  })
-
-  it('puts the domain on its own line', () => {
-    const lines = shareText({ number: 5, attempts: [true], solved: true, streak: 0 }).split('\n')
-    expect(lines).toHaveLength(3)
-    expect(lines[2]).toBe('compound.money')
   })
 })

@@ -26,8 +26,14 @@ export function LearnScreen() {
   const today = dayKey()
 
   const ranked = useMemo(
-    () => rankLessons(state.profile, state.lessons, state.jurisdiction ?? 'US'),
-    [state.profile, state.lessons, state.jurisdiction],
+    () =>
+      rankLessons(
+        state.profile,
+        state.lessons,
+        state.jurisdiction ?? 'US',
+        state.predictions.length,
+      ),
+    [state.profile, state.lessons, state.jurisdiction, state.predictions.length],
   )
 
   const due = useMemo(() => {

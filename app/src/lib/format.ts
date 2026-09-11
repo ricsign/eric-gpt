@@ -143,3 +143,41 @@ export function dayKey(date: Date = new Date()): string {
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
+
+/**
+ * A date some number of months from today, as a day key.
+ * Used to turn "34 months" into an actual date the user can point at.
+ */
+export function dateInMonths(months: number, from: Date = new Date()): string | null {
+  if (!Number.isFinite(months)) return null
+  const d = new Date(from.getFullYear(), from.getMonth(), 1)
+  d.setMonth(d.getMonth() + Math.max(0, Math.round(months)))
+  return dayKey(d)
+}
+
+/** `March 2029`, or `Mar 2029` when space is tight. */
+export function monthYear(key: string, short = false): string {
+  const [y, m] = key.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', {
+    month: short ? 'short' : 'long',
+    year: 'numeric',
+  })
+}
+
+/**
+ * How much sooner or later one date is than another, in plain words.
+ * Returns null when they are the same month, so the UI can say nothing.
+ */
+export function dateShift(from: string, to: string): string | null {
+  const months = (a: string, b: string) => {
+    const [ay, am] = a.split('-').map(Number)
+    const [by, bm] = b.split('-').map(Number)
+    return (by - ay) * 12 + (bm - am)
+  }
+  const delta = months(from, to)
+  if (delta === 0) return null
+
+  const n = Math.abs(delta)
+  const unit = n < 12 ? `${n} month${n === 1 ? '' : 's'}` : duration(n)
+  return `${unit} ${delta < 0 ? 'earlier' : 'later'}`
+}

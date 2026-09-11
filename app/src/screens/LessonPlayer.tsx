@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Screen } from '../ui/Screen'
 import { useNav } from '../ui/NavStack'
 import { Button } from '../ui/Button'
 import { Icon } from '../ui/Icon'
 import { ValueSlider } from '../ui/ValueSlider'
+import { CurveDraw, type CurveResult } from '../ui/CurveDraw'
+import { shareGapCard } from '../lib/gapcard'
 import { GrowthChart } from '../ui/GrowthChart'
 import { NumberRoll } from '../ui/NumberRoll'
 import { useStore } from '../state/store'
@@ -33,6 +35,15 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
 
   const [index, setIndex] = useState(0)
   const [score, setScore] = useState({ correct: 0, total: 0 })
+  /**
+   * The commitment, as the user words it.
+   *
+   * Seeded from the lesson's suggestion and then editable. Two reasons it is not
+   * simply asserted: writing it yourself is a second generation effect, and an
+   * app that states a dollar-specific instruction about someone's own accounts
+   * has crossed from education into personalised recommendation.
+   */
+  const [draft, setDraft] = useState<{ when: string; then: string } | null>(null)
 
   if (!lesson) return null
 
@@ -70,6 +81,7 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
         <LessonFooter
           beat={beat}
           isLast={isLast}
+          draft={draft}
           onAdvance={advance}
           onFinish={finish}
           onCommit={(when, then, worth) => {
@@ -95,6 +107,8 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
         >
           <BeatView
             beat={beat}
+            draft={draft}
+            setDraft={setDraft}
             onScore={(correct) =>
               setScore((s) => ({ correct: s.correct + (correct ? 1 : 0), total: s.total + 1 }))
             }
@@ -107,7 +121,17 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
 
 /* ------------------------------------------------------------------------- */
 
-function BeatView({ beat, onScore }: { beat: Beat; onScore: (correct: boolean) => void }) {
+function BeatView({
+  beat,
+  draft,
+  setDraft,
+  onScore,
+}: {
+  beat: Beat
+  draft: { when: string; then: string } | null
+  setDraft: (d: { when: string; then: string }) => void
+  onScore: (correct: boolean) => void
+}) {
   switch (beat.kind) {
     case 'anchor':
       return (
@@ -151,18 +175,7 @@ function BeatView({ beat, onScore }: { beat: Beat; onScore: (correct: boolean) =
       )
 
     case 'action':
-      return (
-        <div className="lp-action">
-          <p className="lp-kicker">One thing</p>
-          <p className="lp-action-text selectable">
-            <span className="lp-action-when">When {beat.when},</span> {beat.then}.
-          </p>
-          <p className="lp-note">
-            Tied to something that will actually happen, rather than to remembering. That is the
-            difference between an intention and a plan.
-          </p>
-        </div>
-      )
+      return <ActionBeatView beat={beat} draft={draft} setDraft={setDraft} />
   }
 }
 
@@ -185,6 +198,10 @@ function Probe({
     if (beat.unit === 'percent') return `${v.toFixed(1)}%`
     if (beat.unit === 'years') return `${v.toFixed(1)} years`
     return `${Math.round(v)}`
+  }
+
+  if (beat.mode === 'draw') {
+    return <DrawProbe beat={beat} onScore={onScore} />
   }
 
   if (beat.mode === 'choice') {
@@ -285,6 +302,112 @@ function Probe({
           </p>
 
           <p className="lp-probe-because selectable">{beat.because}</p>
+        </motion.div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The curve-draw probe.
+ *
+ * The headline after committing is the signed endpoint error — "you guessed 61%
+ * low" — because that single number is the whole finding, is comparable across
+ * every curve in the app, and contains nothing about the learner's own money.
+ */
+function DrawProbe({
+  beat,
+  onScore,
+}: {
+  beat: Extract<Beat, { kind: 'probe'; mode: 'draw' }>
+  onScore: (correct: boolean) => void
+}) {
+  const { recordPrediction } = useStore()
+  const [result, setResult] = useState<CurveResult | null>(null)
+  const [shared, setShared] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
+  const curve = useMemo(() => beat.curve(), [beat])
+
+  const handle = (r: CurveResult) => {
+    setResult(r)
+    recordPrediction(beat.measures, Math.abs(r.endpointError))
+    // "Correct" here means calibrated within 25%, which is a generous band for a
+    // finger-drawn curve. The score is used only to seed the review interval.
+    onScore(Math.abs(r.endpointError) <= 0.25)
+  }
+
+  const low = result ? result.endpointError < 0 : false
+  const pct = result ? Math.round(Math.abs(result.endpointError) * 100) : 0
+
+  return (
+    <div className="lp-probe">
+      <p className="lp-kicker">Before we say anything</p>
+      <h3 className="lp-probe-question">{beat.question}</h3>
+
+      <CurveDraw
+        truth={curve}
+        yMax={beat.yMax}
+        xLabel={beat.xLabel}
+        domainLabel={beat.domainLabel}
+        onCommit={handle}
+      />
+
+      {result && (
+        <motion.div
+          className="lp-probe-result"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring.nav}
+        >
+          <p className="lp-draw-verdict" data-close={pct <= 25 || undefined}>
+            {pct <= 8
+              ? 'Almost exactly right.'
+              : `You guessed ${pct}% ${low ? 'low' : 'high'}.`}
+          </p>
+
+          <div className="lp-probe-compare">
+            <div>
+              <p className="lp-probe-compare-label">Your line ends at</p>
+              <p className="lp-probe-compare-value num">{moneyCompact(result.predictedEnd)}</p>
+            </div>
+            <div>
+              <p className="lp-probe-compare-label">It actually reaches</p>
+              <p className="lp-probe-compare-value num lp-probe-compare-value--real">
+                <NumberRoll value={result.actualEnd} format={moneyCompact} duration={1.2} />
+              </p>
+            </div>
+          </div>
+
+          <p className="lp-probe-because selectable">{beat.because}</p>
+
+          {/* The Gap Card. A hand-drawn line, the real curve, and a percentage
+              about the learner's intuition — no balance, no salary, nothing that
+              triggers the disclosure taboo that kills every other finance share. */}
+          <Button
+            block
+            variant="secondary"
+            icon={<Icon name="share" size={18} />}
+            feedback={null}
+            onClick={async () => {
+              haptic('light')
+              const outcome = await shareGapCard({
+                stroke: result.stroke,
+                truth: curve,
+                yMax: beat.yMax,
+                endpointError: result.endpointError,
+                scenario: beat.scenario,
+                xLabel: beat.xLabel,
+              })
+              if (outcome !== 'cancelled') setShared(outcome)
+              if (outcome === 'shared' || outcome === 'copied') haptic('success')
+            }}
+          >
+            {shared === 'copied' ? 'Copied' : shared === 'shared' ? 'Shared' : 'Share the gap'}
+          </Button>
+
+          <p className="lp-share-note">
+            The card shows your line, the real curve, and how far off you were. It contains no
+            balance, no salary, and nothing about your own money.
+          </p>
         </motion.div>
       )}
     </div>
@@ -437,17 +560,75 @@ function PracticeQuestion({
   )
 }
 
+/**
+ * The commitment, in the user's own words.
+ *
+ * The app fills the blanks in with a suggestion and then gets out of the way. An
+ * implementation intention someone wrote themselves is both better remembered
+ * and, in this category, the only version that is safe to ship: an app that
+ * completes the sentence with a dollar figure about your accounts has stopped
+ * teaching and started advising.
+ */
+function ActionBeatView({
+  beat,
+  draft,
+  setDraft,
+}: {
+  beat: Extract<Beat, { kind: 'action' }>
+  draft: { when: string; then: string } | null
+  setDraft: (d: { when: string; then: string }) => void
+}) {
+  const value = draft ?? { when: beat.when, then: beat.then }
+
+  useEffect(() => {
+    if (!draft) setDraft({ when: beat.when, then: beat.then })
+  }, [draft, setDraft, beat.when, beat.then])
+
+  return (
+    <div className="lp-action">
+      <p className="lp-kicker">One thing, in your words</p>
+
+      <div className="lp-commit">
+        <span className="lp-commit-fixed">When</span>
+        <textarea
+          className="lp-commit-field"
+          value={value.when}
+          rows={2}
+          aria-label="When this happens"
+          onChange={(e) => setDraft({ ...value, when: e.target.value })}
+        />
+        <span className="lp-commit-fixed">I will</span>
+        <textarea
+          className="lp-commit-field"
+          value={value.then}
+          rows={3}
+          aria-label="I will do this"
+          onChange={(e) => setDraft({ ...value, then: e.target.value })}
+        />
+      </div>
+
+      <p className="lp-note">
+        Edit either line. Tying it to something that will actually happen, rather than to
+        remembering, is the difference between an intention and a plan — and writing it in your
+        own words is the part that makes it stick.
+      </p>
+    </div>
+  )
+}
+
 /* ---- Footer ---------------------------------------------------------------- */
 
 function LessonFooter({
   beat,
   isLast,
+  draft,
   onAdvance,
   onFinish,
   onCommit,
 }: {
   beat: Beat
   isLast: boolean
+  draft: { when: string; then: string } | null
   onAdvance: () => void
   onFinish: () => void
   onCommit: (when: string, then: string, worth: number | null) => void
@@ -456,6 +637,7 @@ function LessonFooter({
 
   if (beat.kind === 'action') {
     const worth = beat.worth?.(state.profile) ?? null
+    const committed = draft ?? { when: beat.when, then: beat.then }
     return (
       <div className="lp-footer-actions">
         {worth != null && worth > 0 && (
@@ -463,13 +645,17 @@ function LessonFooter({
             Worth about <strong className="num">{money(worth)}</strong> on your numbers.
           </p>
         )}
-        {beat.options.map((o) => (
+        {beat.options.map((o, i) => (
           <Button
             key={o.label}
             block
-            size={o.commits ? 'lg' : 'md'}
-            variant={o.commits ? 'primary' : 'plain'}
-            onClick={() => (o.commits ? onCommit(beat.when, beat.then, worth) : onFinish())}
+            size={i === 0 ? 'lg' : 'md'}
+            // Exactly one primary action. Two full-weight green buttons stacked
+            // is a choice presented as an instruction twice.
+            variant={i === 0 ? 'primary' : o.commits ? 'secondary' : 'plain'}
+            onClick={() =>
+              o.commits ? onCommit(committed.when, committed.then, worth) : onFinish()
+            }
             feedback={o.commits ? null : 'light'}
           >
             {o.label}

@@ -3,7 +3,7 @@ import { ListGroup, Row } from '../ui/List'
 import { ValueSlider } from '../ui/ValueSlider'
 import { useNav } from '../ui/NavStack'
 import { BackButton } from '../ui/NavStack'
-import { useStore } from '../state/store'
+import { calibration, useStore } from '../state/store'
 import { money, percent } from '../lib/format'
 import { FACTS } from '../data/facts'
 import { isPersistent } from '../lib/storage'
@@ -32,6 +32,8 @@ export function YouScreen() {
   return (
     <Screen title="You">
       <div className="you">
+        <Calibration />
+
         {confirmed.length > 0 && (
           <div className="you-hero">
             <p className="you-hero-label">Actions you have taken</p>
@@ -147,6 +149,73 @@ export function YouScreen() {
         </ListGroup>
       </div>
     </Screen>
+  )
+}
+
+/**
+ * Calibration — the only metric-like object in the app.
+ *
+ * It is the median error across every curve you have drawn, and it is here rather
+ * than a streak or an XP total for reasons that each matter on their own:
+ *
+ *  - It measures the actual learning objective (how wrong your intuition about
+ *    compounding is) rather than a proxy for attendance.
+ *  - It is falsifiable, unlike a composite "financial health score".
+ *  - It goes *down*, so it is not a brag ladder.
+ *  - Missing a day cannot break it, so it carries no loss frame and needs no
+ *    freezes, repairs, or notifications to defend it.
+ */
+function Calibration() {
+  const { state } = useStore()
+  const c = calibration(state.predictions)
+
+  if (c.count === 0) {
+    return (
+      <div className="you-calibration you-calibration--empty">
+        <p className="you-calibration-label">Calibration</p>
+        <p className="you-calibration-empty">
+          Draw a curve and we will start tracking how far off your intuition is. It is the only
+          number this app keeps about you, and the goal is for it to fall.
+        </p>
+      </div>
+    )
+  }
+
+  const pct = Math.round((c.recent ?? c.median ?? 0) * 100)
+  const sparkline = state.predictions.slice(-16)
+  const worst = Math.max(0.05, ...sparkline.map((p) => p.error))
+
+  return (
+    <div className="you-calibration">
+      <p className="you-calibration-label">Calibration</p>
+      <p className="you-calibration-value num">{pct}%</p>
+      <p className="you-calibration-sub">
+        your typical error across {c.count} {c.count === 1 ? 'curve' : 'curves'}
+        {c.improving ? ' — and falling' : ''}
+      </p>
+
+      {sparkline.length > 2 && (
+        <svg
+          className="you-spark"
+          viewBox={`0 0 ${sparkline.length - 1} 10`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={`Prediction error over your last ${sparkline.length} curves`}
+        >
+          <path
+            d={sparkline
+              .map((p, i) => `${i === 0 ? 'M' : 'L'}${i},${(p.error / worst) * 10}`)
+              .join(' ')}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="0.5"
+            vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </div>
   )
 }
 

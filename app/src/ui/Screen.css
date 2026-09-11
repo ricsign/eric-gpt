@@ -26,10 +26,16 @@
  * without also fading the buttons. Painting blur on a layer that stays composited
  * keeps this off the main thread.
  */
+/*
+ * The material ramps in roughly twice as fast as the title. iOS establishes the
+ * bar's background as soon as content passes under it and only then crossfades
+ * the title in; running both on the same curve leaves a moment where the title
+ * floats over unblurred content and reads as a glitch.
+ */
 .navbar-material {
   position: absolute;
   inset: 0;
-  opacity: var(--collapse);
+  opacity: calc(var(--collapse) * 2);
   background: var(--material-bar);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -71,8 +77,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* Fades and rises into place as the large title leaves — the iOS crossfade. */
-  opacity: var(--collapse);
+  /* Fades and rises into place as the large title leaves — the iOS crossfade.
+     Held back until the material is most of the way in. */
+  opacity: calc((var(--collapse) - 0.45) / 0.55);
   transform: translateY(calc((1 - var(--collapse)) * 6px));
 }
 

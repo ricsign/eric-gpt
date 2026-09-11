@@ -163,6 +163,39 @@ describe('lesson integrity', () => {
     }
   })
 
+  it('the curve-draw probe leaves headroom and covers the whole domain', () => {
+    for (const l of LESSONS) {
+      for (const b of l.build(profile)) {
+        if (b.kind !== 'probe' || b.mode !== 'draw') continue
+        const curve = b.curve()
+
+        expect(curve.length, l.id).toBeGreaterThan(8)
+        expect(curve[0].t, l.id).toBe(0)
+        expect(curve[curve.length - 1].t, l.id).toBeCloseTo(1, 6)
+
+        // The axis must sit above the truth. A curve that touches the ceiling
+        // gives its own shape away before the learner has drawn anything.
+        const peak = Math.max(...curve.map((p) => p.value))
+        expect(b.yMax, `${l.id}: yMax must clear the curve`).toBeGreaterThanOrEqual(peak)
+
+        // ...but not so far above that the curve is a flat line at the bottom.
+        expect(peak / b.yMax, `${l.id}: curve should fill the axis`).toBeGreaterThan(0.6)
+
+        expect(b.measures, l.id).toBeTruthy()
+        expect(b.xLabel, l.id).toBeTruthy()
+      }
+    }
+  })
+
+  it('at least one lesson opens with a drawn curve', () => {
+    // The gesture is the product. If every probe silently degrades to a slider,
+    // the thing that makes this app different has been refactored away.
+    const draws = LESSONS.filter((l) =>
+      l.build(profile).some((b) => b.kind === 'probe' && b.mode === 'draw'),
+    )
+    expect(draws.length).toBeGreaterThanOrEqual(2)
+  })
+
   it('a numeric probe never starts the slider on the right answer', () => {
     for (const l of LESSONS) {
       for (const b of l.build(profile)) {
@@ -175,6 +208,19 @@ describe('lesson integrity', () => {
           )
           expect(b.answer).toBeGreaterThanOrEqual(b.min)
         }
+      }
+    }
+  })
+
+  it('the commitment pre-fill is written in the first person', () => {
+    // It is rendered inside "When ___, I will ___", which the user then edits.
+    // Second-person copy there reads as the app talking at you inside a sentence
+    // you are supposed to be authoring.
+    for (const l of LESSONS) {
+      const action = l.build(profile).find((b) => b.kind === 'action')
+      if (action?.kind !== 'action') continue
+      for (const field of [action.when, action.then]) {
+        expect(field, `${l.id}: "${field}"`).not.toMatch(/\byou\b|\byour\b|\byou'?re\b/i)
       }
     }
   })
@@ -294,5 +340,31 @@ describe('lesson ranking', () => {
     const after = rankLessons(profile, { [first.id]: true })
     expect(after[0].id).not.toBe(first.id)
     expect(after.map((l) => l.id)).toContain(first.id)
+  })
+})
+
+describe('the wedge is reachable', () => {
+  it('a brand-new learner is offered a curve to draw, not a multiple choice', () => {
+    // The gesture is the product. If the first thing a new user meets is a
+    // four-option question, they never see what makes this different.
+    const first = rankLessons(profile, {}, 'US', 0)[0]
+    const probe = first.build(profile).find((b) => b.kind === 'probe')
+    expect(probe?.kind === 'probe' && probe.mode).toBe('draw')
+  })
+
+  it('once they have drawn a few, relevance takes over again', () => {
+    const experienced = rankLessons({ ...profile, income: 80_000 }, {}, 'US', 12)[0]
+    expect(experienced.triggers).toContain('has-employer-plan')
+  })
+
+  it('every draw probe states its scenario in universal terms', () => {
+    // This string is printed on the share card, so it must carry no personal data.
+    for (const l of LESSONS) {
+      for (const b of l.build(profile)) {
+        if (b.kind !== 'probe' || b.mode !== 'draw') continue
+        expect(b.scenario.length, l.id).toBeGreaterThan(10)
+        expect(b.scenario.toLowerCase(), l.id).not.toContain('your')
+      }
+    }
   })
 })

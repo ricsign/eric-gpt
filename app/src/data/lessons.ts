@@ -12,6 +12,21 @@ import { duration, money, moneyCompact, percent } from '../lib/format'
 import type { Profile } from '../state/store'
 import { FACTS } from './facts'
 import type { Beat, Lesson } from './lesson-types'
+import type { CurvePoint } from '../ui/CurveDraw'
+
+/**
+ * Samples a growth series onto the normalised grid the curve canvas draws on.
+ * 48 points is smooth at phone widths and keeps the comparison against a
+ * finger-drawn stroke cheap.
+ */
+function toCurve(series: { year: number; balance: number }[], steps = 48): CurvePoint[] {
+  const last = series[series.length - 1]
+  return Array.from({ length: steps + 1 }, (_, i) => {
+    const t = i / steps
+    const idx = Math.min(series.length - 1, Math.round(t * (series.length - 1)))
+    return { t, value: series[idx].balance }
+  }).map((p, i) => ({ t: p.t, value: i === steps ? last.balance : p.value }))
+}
 
 /**
  * The lessons.
@@ -84,19 +99,29 @@ const growthIsNotALine: Lesson = {
       },
       {
         kind: 'probe',
-        mode: 'estimate',
-        question: `Before we show you: what do you think that account is worth at ${p.targetAge}?`,
-        answer: end.balance,
-        unit: 'usd',
-        tolerance: 0.2,
-        min: linearGuess * 0.5,
-        max: Math.max(end.balance * 1.6, linearGuess * 4),
-        // Starting at the sum-of-contributions is deliberate: it is the wrong answer
-        // most people give, so the slider begins exactly where the misconception is.
-        start: linearGuess,
-        because: `Almost everyone lands near ${moneyCompact(
+        mode: 'draw',
+        question: `Draw how that balance grows between now and ${p.targetAge}.`,
+        curve: () =>
+          toCurve(
+            growthSeries({
+              principal: p.invested,
+              monthly: p.monthly,
+              annualRate: p.rate,
+              years,
+            }),
+          ),
+        // Headroom above the truth so the curve does not hug the ceiling and give
+        // its own shape away before the reveal.
+        yMax: end.balance * 1.15,
+        xLabel: `${years} years`,
+        domainLabel: `${years} years`,
+        // Universal terms, not the learner's figures: this string is printed on
+        // the share card, which must disclose nothing.
+        scenario: `${money(p.monthly)} a month for ${years} years at ${percent(p.rate)}`,
+        measures: 'exponential-growth',
+        because: `Almost everyone draws something close to a straight line, landing near ${moneyCompact(
           linearGuess,
-        )} — the contributions added up. That is the linear answer, and it is the one the mind reaches for.`,
+        )} — the contributions added up. That is the linear answer, and it is the one the mind reaches for. The real line barely moves for a decade and then leaves your stroke behind entirely.`,
       },
       {
         kind: 'reveal',
@@ -202,8 +227,8 @@ const growthIsNotALine: Lesson = {
       },
       {
         kind: 'action',
-        when: 'the next time you get a raise',
-        then: 'move half of it into the same account, before you have lived a month at the new salary',
+        when: 'I next get a raise',
+        then: 'move half of it into the same account, before I have lived a month at the new salary',
         options: [
           { label: "I'll do that", commits: true },
           { label: 'Remind me at my next review', commits: true },
@@ -363,8 +388,8 @@ const startingToday: Lesson = {
       },
       {
         kind: 'action',
-        when: 'your next payday arrives',
-        then: 'set up one automatic transfer, for any amount you would not notice, on the day the money lands',
+        when: 'my next payday arrives',
+        then: 'set up one automatic transfer, for any amount I would not notice, on the day the money lands',
         options: [
           { label: 'Setting it up today', commits: true },
           { label: 'On my next payday', commits: true },
@@ -416,16 +441,31 @@ const compoundingInReverse: Lesson = {
       },
       {
         kind: 'probe',
-        mode: 'estimate',
-        question: `Paying exactly the minimum every month, how long until the balance reaches zero?`,
-        answer: minPlan.months / 12,
-        unit: 'years',
-        tolerance: 0.25,
-        min: 1,
-        max: Math.max(25, (minPlan.months / 12) * 1.5),
-        start: 3,
-        because:
-          'Most people guess three to five years. The minimum is calculated to make that impossible.',
+        mode: 'draw',
+        question: `Draw how that balance falls if you pay exactly the minimum every month.`,
+        curve: () => {
+          // The schedule is a falling balance rather than a growing one, so this
+          // is the decay shape: the mirror of the growth curve, and the one people
+          // get wrong in the same direction for the same reason.
+          const horizonMonths = minPlan.neverPaysOff
+            ? 240
+            : Math.min(600, Math.round(minPlan.months * 1.1))
+          const schedule = minPlan.schedule
+          const steps = 48
+          return Array.from({ length: steps + 1 }, (_, i) => {
+            const t = i / steps
+            const m = Math.round(t * horizonMonths)
+            return { t, value: schedule[Math.min(m, schedule.length - 1)] ?? 0 }
+          })
+        },
+        yMax: balance * 1.08,
+        xLabel: minPlan.neverPaysOff ? '20 years' : duration(Math.round(minPlan.months * 1.1)),
+        domainLabel: minPlan.neverPaysOff ? '20 years' : duration(minPlan.months),
+        scenario: `${money(balance)} at ${percent(apr)} APR, minimum payments only`,
+        measures: 'debt-compounding',
+        because: minPlan.neverPaysOff
+          ? 'Most people draw a line that reaches zero. At this payment it never does — the interest charged each month matches what you send.'
+          : `Most people draw a line falling steadily to zero in three to five years. The real one barely moves at the start, because most of each early payment is interest.`,
       },
       {
         kind: 'reveal',
@@ -540,8 +580,8 @@ const compoundingInReverse: Lesson = {
       },
       {
         kind: 'action',
-        when: 'your next statement arrives',
-        then: `set the autopay amount to a fixed figure you choose, rather than to "minimum due" — a fixed payment keeps shrinking the balance instead of shrinking itself`,
+        when: 'my next statement arrives',
+        then: `set the autopay amount to a fixed figure I choose, rather than to "minimum due" — a fixed payment keeps shrinking the balance instead of shrinking itself`,
         options: [
           { label: 'Changing it this week', commits: true },
           { label: 'When the statement lands', commits: true },
@@ -698,8 +738,8 @@ const matchComesFirst: Lesson = {
       },
       {
         kind: 'action',
-        when: 'you next open your payroll or benefits portal',
-        then: 'check one number — the percentage you contribute — against one other number, the percentage your employer matches up to',
+        when: 'I next open my payroll or benefits portal',
+        then: 'check one number — the percentage I contribute — against one other number, the percentage my employer matches up to',
         options: [
           { label: "I'll check this week", commits: true },
           { label: 'At open enrollment', commits: true },
@@ -849,8 +889,8 @@ const whereCashSits: Lesson = {
       },
       {
         kind: 'action',
-        when: 'you next open your banking app',
-        then: 'find the interest rate on your main savings account and write the number down — deciding what to do about it is a separate question for a separate day',
+        when: 'I next open my banking app',
+        then: 'find the interest rate on my main savings account and write the number down — deciding what to do about it is a separate question for a separate day',
         options: [
           { label: 'Looking it up now', commits: true },
           { label: 'Remind me tomorrow', commits: true },
@@ -1005,14 +1045,204 @@ const smallFeesCompound: Lesson = {
       },
       {
         kind: 'action',
-        when: 'you next log into your retirement account',
-        then: 'find the expense ratio of your largest holding — it is usually one tap into the fund detail, listed as "gross expense ratio"',
+        when: 'I next log into my retirement account',
+        then: 'find the expense ratio of my largest holding — it is usually one tap into the fund detail, listed as "gross expense ratio"',
         options: [
           { label: 'Checking this week', commits: true },
           { label: 'Remind me at open enrollment', commits: true },
           { label: 'Not now', commits: false },
         ],
         worth: () => drag.lost,
+      },
+    ]
+  },
+}
+
+
+/* ========================================================================== *
+ * 7. The setting that does the work
+ * ========================================================================== */
+
+/**
+ * The most important lesson in the app, and the one that argues against the app.
+ *
+ * The strongest evidence in this entire domain is not educational. Madrian & Shea
+ * (2001) found that switching a 401(k) to automatic enrolment moved participation
+ * from roughly 37% to 86% — an effect an order of magnitude beyond anything any
+ * teaching intervention has produced. Thaler & Benartzi's Save More Tomorrow did
+ * the same for escalation.
+ *
+ * The honest conclusion is that for the two or three highest-value behaviours, the
+ * job is to get the learner to one button, and the lesson exists only to make them
+ * press it. This lesson says that out loud rather than pretending understanding is
+ * the goal.
+ */
+const defaultsDoTheWork: Lesson = {
+  id: 'defaults-do-the-work',
+  title: 'The setting that does the work',
+  competence: 'You can name the one setting worth more than everything you will learn here',
+  misconception:
+    'People believe saving is a willpower problem, so they look for motivation. It is overwhelmingly a defaults problem, and the fix is a checkbox.',
+  citation: {
+    text: 'Madrian & Shea (2001) found automatic enrolment raised 401(k) participation from about 37% to about 86% — an effect far larger than any financial-education intervention has produced.',
+  },
+  triggers: ['always', 'new-job', 'first-paycheck', 'open-enrollment'],
+  jurisdiction: 'any',
+  minutes: 3,
+  concepts: ['defaults', 'automation'],
+  build: (profile) => {
+    const p = withDefaults(profile)
+    const years = Math.max(10, p.targetAge - p.age)
+
+    const flat = futureValue({
+      principal: p.invested,
+      monthly: p.monthly,
+      annualRate: p.rate,
+      years,
+    })
+    // Auto-escalation: the same starting contribution, raised 1% of pay a year.
+    const escalating = futureValue({
+      principal: p.invested,
+      monthly: p.monthly,
+      annualRate: p.rate,
+      years,
+      contributionGrowth: 0.03,
+    })
+
+    return [
+      {
+        kind: 'anchor',
+        body: `You save ${money(p.monthly)} a month because you decided to, and you keep doing it because you keep deciding to. Every month is a fresh decision.`,
+        note: 'This lesson is about removing that decision, not about making it easier.',
+      },
+      {
+        kind: 'probe',
+        mode: 'choice',
+        question:
+          'A company switches its retirement plan from opt-in to opt-out. Nothing else changes — same plan, same funds, same match, and anyone can still leave in one click. What happens to the share of staff who participate?',
+        options: [
+          { label: 'It rises a few points', correct: false, misconception: 'This is what almost everyone guesses, because it assumes participation reflects intent.' },
+          { label: 'It roughly doubles', correct: true },
+          { label: 'Barely changes — people who want in are already in', correct: false, misconception: 'The premise sounds obviously true and is the thing the evidence contradicts most sharply.' },
+          { label: 'It falls, because people resent being enrolled', correct: false, misconception: 'Opt-out rates stay low. Very few people leave.' },
+        ],
+        because:
+          'Madrian & Shea studied exactly this change at one large firm: participation went from about 37% to about 86%. The plan was identical. Only the default changed.',
+      },
+      {
+        kind: 'reveal',
+        headline: '37% → 86%',
+        body: 'No lesson was taught. No incentive was added. Nobody was persuaded of anything. A checkbox was flipped from unticked to ticked, and more than twice as many people ended up saving for retirement. No financial-education programme has ever produced an effect within an order of magnitude of this.',
+        contrast: [
+          { label: 'Changing the default', value: '+49 points', tone: 'growth' },
+          { label: 'Typical education effect', value: 'near zero on behaviour', tone: 'neutral' },
+        ],
+      },
+      {
+        kind: 'mechanism',
+        sentence:
+          'A default is not a nudge towards a choice — it is the outcome for everyone who never makes one, and most people never make one.',
+        detail:
+          'Deciding costs attention, and attention is the scarcest thing in anyone\'s week. Whatever happens when you do nothing is what happens most of the time. That is not a character flaw; it is the shape of every busy life.',
+        visual: 'none',
+      },
+      {
+        kind: 'worked',
+        setup: `The same ${money(p.monthly)} a month, with one difference: the second version rises 3% a year on its own.`,
+        steps: [
+          { label: 'Fixed amount, never revisited', value: moneyCompact(flat.balance) },
+          {
+            label: 'Escalating 3% a year automatically',
+            value: moneyCompact(escalating.balance),
+            blankable: true,
+            answer: Math.round(escalating.balance),
+            unit: 'usd',
+          },
+          { label: 'Difference', value: moneyCompact(escalating.balance - flat.balance) },
+          { label: 'Decisions required after setup', value: 'none' },
+        ],
+        conclusion:
+          'Save More Tomorrow was built on exactly this: commit in advance to escalating out of future raises, so the increase never feels like a cut. Participants roughly tripled their savings rates. Again, not by learning anything.',
+      },
+      {
+        kind: 'practice',
+        items: [
+          {
+            prompt: 'Which is worth more over a career?',
+            options: [
+              {
+                label: 'Turning on automatic escalation once',
+                correct: true,
+                why: 'It compounds and it never needs to be decided again. One action, permanent effect.',
+              },
+              {
+                label: 'Reading about investing for an hour every month',
+                correct: false,
+                why: 'Understanding is pleasant and does almost nothing on its own. This app is not exempt from that finding.',
+              },
+            ],
+          },
+          {
+            prompt:
+              'You want to stop overspending on a card. Which change is most likely to still be working in a year?',
+            options: [
+              {
+                label: 'Moving the card out of your default payment settings',
+                correct: true,
+                why: 'It changes what happens when you do nothing. Friction at the point of action beats resolve at a distance.',
+              },
+              {
+                label: 'Setting a monthly budget and checking it weekly',
+                correct: false,
+                why: 'It requires a decision every week. Every week is a chance to skip one.',
+              },
+            ],
+            transfer: true,
+          },
+          {
+            prompt: 'What does this imply about this app?',
+            options: [
+              {
+                label: 'Its job is to get you to a setting, then get out of the way',
+                correct: true,
+                why: 'Which is why every lesson here ends on one concrete action rather than on a summary — and why we would rather you changed one default and never came back than read all twelve lessons and changed nothing.',
+              },
+              {
+                label: 'Learning more is the point',
+                correct: false,
+                why: 'Knowledge is the means. If it does not end in a changed setting, the evidence says it mostly evaporates within two years.',
+              },
+            ],
+            transfer: true,
+          },
+        ],
+      },
+      {
+        kind: 'rule',
+        name: 'Change what happens when you do nothing',
+        statement:
+          'Before trying to behave differently, look for the setting that decides the outcome on the days you are not paying attention.',
+        example:
+          'Auto-enrolment. Auto-escalation. A standing transfer on payday. Removing a saved card. Each is one action that keeps working while you forget about it entirely.',
+      },
+      {
+        kind: 'action',
+        when: 'I next have my retirement plan or banking app open',
+        then: 'look for an "automatic increase", "annual escalation" or "auto-increase" setting and turn it on — most plans have one and almost nobody uses it',
+        options: [
+          { label: "I'll look this week", commits: true },
+          { label: 'Remind me at open enrollment', commits: true },
+          { label: "I don't have a plan with that option", commits: false },
+        ],
+        worth: (prof) => {
+          const q = withDefaults(prof)
+          const yrs = Math.max(10, q.targetAge - q.age)
+          const base = { principal: q.invested, monthly: q.monthly, annualRate: q.rate, years: yrs }
+          return (
+            futureValue({ ...base, contributionGrowth: 0.03 }).balance -
+            futureValue(base).balance
+          )
+        },
       },
     ]
   },
@@ -1025,6 +1255,7 @@ const smallFeesCompound: Lesson = {
 export const LESSONS: Lesson[] = [
   growthIsNotALine,
   startingToday,
+  defaultsDoTheWork,
   compoundingInReverse,
   matchComesFirst,
   whereCashSits,
@@ -1046,15 +1277,29 @@ export function rankLessons(
   profile: Profile,
   completed: Record<string, unknown>,
   jurisdiction: 'US' | 'other' = 'US',
+  /** How many curves this person has already drawn. */
+  curvesDrawn = 1,
 ): Lesson[] {
   const hasDebt = (profile.debtBalance ?? 0) > 0
   const hasIncome = (profile.income ?? 0) > 0
+  const isNew = curvesDrawn === 0
+
+  /** Whether a lesson's probe is the draw gesture. */
+  const isCurve = (l: Lesson) =>
+    l.build(profile).some((b) => b.kind === 'probe' && b.mode === 'draw')
 
   const score = (l: Lesson): number => {
     let s = 0
     if (l.triggers.includes('has-debt') && hasDebt) s += 10
     if (l.triggers.includes('has-employer-plan') && hasIncome) s += 8
     if (l.triggers.includes('always')) s += 3
+    // Defaults outperform every teaching intervention in the literature by an
+    // order of magnitude, so the lesson about defaults outranks the rest of the
+    // teaching. It loses only to an active high-interest debt.
+    if (l.id === 'defaults-do-the-work') s += 4
+    // Someone who has never drawn a curve should meet the gesture first: it is
+    // the product, and a multiple-choice lesson is a poor introduction to it.
+    if (isNew && isCurve(l)) s += 20
     // A completed lesson drops to the bottom but stays reachable.
     if (completed[l.id]) s -= 100
     return s

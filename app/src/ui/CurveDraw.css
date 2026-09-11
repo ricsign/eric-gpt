@@ -1,0 +1,182 @@
+.curve {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.curve-canvas {
+  position: relative;
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  /*
+   * pan-y, not none: a vertical flick must still scroll the page, or the canvas
+   * becomes a trap in the middle of a scrolling lesson. The horizontal drawing
+   * gesture claims the pointer only once it starts moving.
+   */
+  touch-action: pan-y;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.curve-svg {
+  display: block;
+}
+
+.curve-grid {
+  stroke: var(--separator);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+
+/* The top gridline is hidden behind the axis label, so it is dropped. */
+.curve-grid:last-of-type {
+  display: none;
+}
+
+.curve-axis {
+  stroke: var(--separator-opaque);
+  stroke-width: 1;
+}
+
+.curve-origin {
+  fill: var(--label-2);
+}
+
+/*
+ * The user's line is deliberately softer and thicker than the truth: it should
+ * read as a sketch, not as data. Round joins and a slight transparency do most
+ * of that work.
+ */
+.curve-stroke {
+  fill: none;
+  stroke: var(--label-2);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.75;
+}
+
+.curve-truth {
+  fill: none;
+  stroke: var(--growth);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* pathLength normalises the dash maths so the draw-on needs no JS measurement. */
+.curve-truth--draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: curve-draw 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes curve-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curve-truth--draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+.curve-axis-label {
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--label-3);
+}
+
+.curve-prompt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  font: var(--t-headline);
+  color: var(--label-2);
+  text-align: center;
+}
+
+.curve-prompt span {
+  font: var(--t-footnote);
+  color: var(--label-3);
+}
+
+.curve-nudge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--s-4);
+  text-align: center;
+  pointer-events: none;
+  font: var(--t-footnote);
+  color: var(--label-3);
+}
+
+.curve-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.curve-commit {
+  min-height: 50px;
+  border-radius: var(--r-md);
+  background: var(--growth);
+  color: var(--label-on-accent);
+  font: var(--t-headline);
+  transition: transform var(--dur-tap) var(--ease-tap), opacity var(--dur-tap) var(--ease-tap);
+}
+
+.curve-commit:disabled {
+  background: var(--fill);
+  color: var(--label-3);
+  cursor: default;
+}
+
+.curve-commit:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.curve-unsure {
+  min-height: 40px;
+  font: var(--t-subhead);
+  color: var(--label-2);
+}
+
+.curve-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+}
+
+.curve-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--t-footnote);
+  color: var(--label-2);
+}
+
+.curve-key-item i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.curve-key-item--yours i {
+  background: var(--label-2);
+}
+
+.curve-key-item--truth i {
+  background: var(--growth);
+}

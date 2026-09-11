@@ -7,7 +7,7 @@ import {
   useReducer,
   type ReactNode,
 } from 'react'
-import { dayKey, daysBetween } from '../lib/format'
+import { dayKey } from '../lib/format'
 import { read, write, clearAll } from '../lib/storage'
 import { initialReview, review as reviewConcept, type Grade, type ReviewState } from '../lib/scheduler'
 import { setHapticsEnabled } from '../lib/haptics'
@@ -46,18 +46,22 @@ export interface LessonProgress {
   total: number
 }
 
-export interface Streak {
-  current: number
-  longest: number
-  /** Day key of the most recent qualifying session. */
-  lastDay: string | null
-  /**
-   * Unspent "rest days". Missing one day with a freeze available keeps the streak.
-   * Two are granted up front and one is restored each full week of activity — enough
-   * that a normal life does not reset the counter, few enough that it still means
-   * something.
-   */
-  freezes: number
+/**
+ * One recorded prediction, from a curve draw or a slider estimate.
+ *
+ * This replaces the streak as the app's only metric-like object, and it survives
+ * the self-determination-theory objections a streak does not: it is a competence
+ * signal rather than a token, it measures the actual learning objective
+ * (exponential-growth bias) rather than a proxy for attendance, it is falsifiable
+ * unlike a composite score, it goes *down* rather than up so it is not a brag
+ * ladder, and missing a day cannot break it, so it carries no loss frame.
+ */
+export interface Prediction {
+  /** Concept the probe measured. */
+  concept: string
+  /** Absolute relative error, 0 = perfect. */
+  error: number
+  day: string
 }
 
 export interface Settings {
@@ -82,7 +86,8 @@ export interface AppState {
   profile: Profile
   lessons: Record<string, LessonProgress>
   reviews: Record<string, ReviewState>
-  streak: Streak
+  /** Newest last. Capped, because this is a signal, not an audit log. */
+  predictions: Prediction[]
   settings: Settings
   /** Concept ids the user has explicitly saved to revisit. */
   saved: string[]
@@ -96,6 +101,14 @@ export interface AppState {
   commitments: Commitment[]
   /** Which country's rules apply. Asked explicitly; never inferred from an IP address. */
   jurisdiction: 'US' | 'other' | null
+  /**
+   * The headline date as it stood last time the user looked.
+   *
+   * Kept so Today can show what moved — "4 months earlier than last time", with
+   * the old date struck through. A date that visibly moves because of something
+   * you did is the only thing on the home screen that earns a reopen in month six.
+   */
+  lastDate: { value: string; seenOn: string } | null
 }
 
 export interface Commitment {
@@ -120,12 +133,13 @@ const DEFAULT_STATE: AppState = {
   },
   lessons: {},
   reviews: {},
-  streak: { current: 0, longest: 0, lastDay: null, freezes: 2 },
+  predictions: [],
   settings: { theme: 'system', haptics: true, realTerms: false },
   saved: [],
   drills: {},
   commitments: [],
   jurisdiction: null,
+  lastDate: null,
 }
 
 type Action =
@@ -134,57 +148,15 @@ type Action =
   | { type: 'completeOnboarding' }
   | { type: 'completeLesson'; id: string; score: number; total: number }
   | { type: 'gradeConcept'; id: string; grade: Grade }
-  | { type: 'recordActivity' }
   | { type: 'toggleSaved'; id: string }
   | { type: 'setSettings'; patch: Partial<Settings> }
   | { type: 'setJurisdiction'; value: 'US' | 'other' }
+  | { type: 'snapshotDate'; value: string }
   | { type: 'recordDrillAttempt'; number: number; correct: boolean }
+  | { type: 'recordPrediction'; concept: string; error: number }
   | { type: 'commit'; commitment: Omit<Commitment, 'id' | 'createdAt'> }
   | { type: 'confirmCommitment'; id: string }
   | { type: 'reset' }
-
-/**
- * Applies a day's activity to the streak.
- *
- * The freeze rule is the only interesting part: a single missed day is forgiven if
- * a freeze is available, because the alternative — a hard reset — is what makes
- * people abandon streak apps entirely after one bad week. Two missed days is a
- * genuine break and does reset.
- */
-function advanceStreak(streak: Streak, today: string): Streak {
-  if (streak.lastDay === today) return streak
-
-  if (!streak.lastDay) {
-    return { ...streak, current: 1, longest: Math.max(1, streak.longest), lastDay: today }
-  }
-
-  const gap = daysBetween(streak.lastDay, today)
-
-  // A clock change or a device-time edit can produce a negative gap. Treat it as
-  // same-day rather than letting it corrupt the count.
-  if (gap <= 0) return streak
-
-  let { current, freezes } = streak
-
-  if (gap === 1) {
-    current += 1
-  } else if (gap === 2 && freezes > 0) {
-    freezes -= 1
-    current += 1
-  } else {
-    current = 1
-  }
-
-  // One freeze earned per full week of continuous activity, capped at two.
-  if (current > 0 && current % 7 === 0) freezes = Math.min(2, freezes + 1)
-
-  return {
-    current,
-    longest: Math.max(current, streak.longest),
-    lastDay: today,
-    freezes,
-  }
-}
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -195,7 +167,7 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, profile: { ...state.profile, ...action.patch } }
 
     case 'completeOnboarding':
-      return { ...state, onboarded: true, streak: advanceStreak(state.streak, dayKey()) }
+      return { ...state, onboarded: true }
 
     case 'completeLesson': {
       const today = dayKey()
@@ -212,7 +184,6 @@ function reducer(state: AppState, action: Action): AppState {
             total: action.total,
           },
         },
-        streak: advanceStreak(state.streak, today),
       }
     }
 
@@ -230,9 +201,6 @@ function reducer(state: AppState, action: Action): AppState {
       }
     }
 
-    case 'recordActivity':
-      return { ...state, streak: advanceStreak(state.streak, dayKey()) }
-
     case 'toggleSaved':
       return {
         ...state,
@@ -246,6 +214,10 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'setJurisdiction':
       return { ...state, jurisdiction: action.value }
+
+    case 'snapshotDate':
+      if (state.lastDate?.value === action.value) return state
+      return { ...state, lastDate: { value: action.value, seenOn: dayKey() } }
 
     case 'recordDrillAttempt': {
       const today = dayKey()
@@ -261,14 +233,19 @@ function reducer(state: AppState, action: Action): AppState {
         day: existing?.day ?? today,
       }
 
+      return { ...state, drills: { ...state.drills, [action.number]: record } }
+    }
+
+    case 'recordPrediction':
       return {
         ...state,
-        drills: { ...state.drills, [action.number]: record },
-        // Showing up advances the streak, whether or not the answer was right.
-        // Rewarding correctness is what turns practice into a performance.
-        streak: advanceStreak(state.streak, today),
+        // 200 is well past the point where the median stops moving, and keeps the
+        // persisted blob small enough to write on every change without cost.
+        predictions: [
+          ...state.predictions,
+          { concept: action.concept, error: action.error, day: dayKey() },
+        ].slice(-200),
       }
-    }
 
     case 'commit': {
       const today = dayKey()
@@ -315,6 +292,7 @@ interface Store {
   gradeConcept: (id: string, grade: Grade) => void
   setSettings: (patch: Partial<Settings>) => void
   recordDrillAttempt: (n: number, correct: boolean) => void
+  recordPrediction: (concept: string, error: number) => void
   commit: (c: Omit<Commitment, 'id' | 'createdAt'>) => void
   confirmCommitment: (id: string) => void
 }
@@ -334,7 +312,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...stored,
           profile: { ...DEFAULT_STATE.profile, ...stored.profile },
           settings: { ...DEFAULT_STATE.settings, ...stored.settings },
-          streak: { ...DEFAULT_STATE.streak, ...stored.streak },
+          predictions: stored.predictions ?? [],
           drills: stored.drills ?? {},
           commitments: stored.commitments ?? [],
         }
@@ -386,6 +364,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (n: number, correct: boolean) => dispatch({ type: 'recordDrillAttempt', number: n, correct }),
     [],
   )
+  const recordPrediction = useCallback(
+    (concept: string, error: number) => dispatch({ type: 'recordPrediction', concept, error }),
+    [],
+  )
   const commit = useCallback(
     (c: Omit<Commitment, 'id' | 'createdAt'>) => dispatch({ type: 'commit', commitment: c }),
     [],
@@ -404,6 +386,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       gradeConcept,
       setSettings,
       recordDrillAttempt,
+      recordPrediction,
       commit,
       confirmCommitment,
     }),
@@ -414,6 +397,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       gradeConcept,
       setSettings,
       recordDrillAttempt,
+      recordPrediction,
       commit,
       confirmCommitment,
     ],
@@ -428,4 +412,44 @@ export function useStore(): Store {
   return ctx
 }
 
-export { DEFAULT_STATE, advanceStreak }
+/**
+ * Median absolute prediction error, and whether it is improving.
+ *
+ * Median rather than mean: one wild first guess would otherwise dominate the
+ * number for weeks, and the point of showing it is that it visibly falls.
+ */
+export function calibration(predictions: Prediction[]): {
+  median: number | null
+  count: number
+  /** Median over the most recent third, for the trend arrow. */
+  recent: number | null
+  improving: boolean
+} {
+  if (predictions.length === 0) return { median: null, count: 0, recent: null, improving: false }
+
+  const med = (xs: number[]) => {
+    if (!xs.length) return null
+    const sorted = [...xs].sort((a, b) => a - b)
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+  }
+
+  const all = predictions.map((p) => p.error)
+  const window = Math.max(3, Math.ceil(predictions.length / 3))
+  const recentErrors = all.slice(-window)
+  const earlyErrors = all.slice(0, Math.max(1, all.length - window))
+
+  const median = med(all)
+  const recent = med(recentErrors)
+  const early = med(earlyErrors)
+
+  return {
+    median,
+    count: predictions.length,
+    recent,
+    // Needs enough history for the comparison to mean anything.
+    improving: predictions.length >= 6 && recent != null && early != null && recent < early,
+  }
+}
+
+export { DEFAULT_STATE }

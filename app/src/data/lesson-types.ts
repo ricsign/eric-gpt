@@ -1,5 +1,6 @@
 import type { Profile } from '../state/store'
 import type { GrowthPoint } from '../lib/finance'
+import type { CurvePoint } from '../ui/CurveDraw'
 
 /**
  * The lesson format.
@@ -45,12 +46,45 @@ export interface AnchorBeat {
 /**
  * The prediction probe.
  *
- * A free numeric estimate wherever the answer is a quantity, because a multiple
- * choice gives away the order of magnitude — which, for compounding, is the entire
- * thing being tested. Multiple choice is allowed only with misconception
- * distractors, and only for non-quantitative judgments.
+ * Three modes, in descending order of preference:
+ *
+ *  - `draw` — the default wherever the answer is a curve. The learner draws the
+ *    shape with a finger before seeing anything. It commits far more willingly
+ *    than a number field, and the gap between the drawn line and the truth is a
+ *    direct measurement of exponential-growth bias rather than a proxy for it.
+ *  - `estimate` — a slider, for quantities that are not curves. Still a forced
+ *    commit, still no keyboard and no arithmetic demanded.
+ *  - `choice` — only for judgments that are not quantities at all, and only with
+ *    distractors that each encode a real, named misconception.
+ *
+ * What is never used: an un-skippable free numeric entry. Demanding arithmetic on
+ * the second screen from an anxious, low-numeracy learner is the highest-churn
+ * design available.
  */
 export type ProbeBeat =
+  | {
+      kind: 'probe'
+      mode: 'draw'
+      question: string
+      /** The truth, sampled across the domain. Built lazily. */
+      curve: () => CurvePoint[]
+      /** Top of the y axis. Chosen so the truth uses most of the height. */
+      yMax: number
+      /** Right-hand axis label, e.g. "30 years". */
+      xLabel: string
+      /** Used in prose: "over 30 years". */
+      domainLabel: string
+      /**
+       * The scenario stated in neutral, universal terms — "$300 a month for 30
+       * years at 7%". Printed on the share card, so it must never contain the
+       * learner's own figures.
+       */
+      scenario: string
+      /** Shown after the reveal, never before. */
+      because: string
+      /** The concept id this probe measures, for the calibration score. */
+      measures: string
+    }
   | {
       kind: 'probe'
       mode: 'estimate'
