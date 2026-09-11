@@ -1,0 +1,92 @@
+.vslider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.vslider[data-disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.vslider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.vslider-label {
+  font: var(--t-subhead);
+  color: var(--label-2);
+}
+
+.vslider-value {
+  font: var(--t-title-3);
+  color: var(--label);
+  /* Grows very slightly while dragging — a small physical cue that it is live. */
+  transition: transform var(--dur-tap) var(--ease-tap), color var(--dur-tap) var(--ease-tap);
+  transform-origin: right center;
+}
+
+.vslider-value[data-dragging] {
+  transform: scale(1.08);
+  color: var(--growth);
+}
+
+.vslider-track {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  /* The whole row is the hit area; the visible track is thinner. */
+  touch-action: none;
+  cursor: grab;
+}
+
+.vslider-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--fill-2);
+}
+
+.vslider-track:active {
+  cursor: grabbing;
+}
+
+.vslider-fill {
+  position: absolute;
+  left: 0;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--growth);
+}
+
+/*
+ * The knob is white in both themes, as iOS sliders are. Tying it to --surface
+ * made it dark-grey-on-dark-grey in dark mode, where it read as a hole punched in
+ * the track rather than as something you can grab.
+ */
+.vslider-thumb {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  transition: transform var(--dur-tap) var(--ease-tap);
+}
+
+.vslider-track:active .vslider-thumb {
+  transform: scale(1.12);
+}
+
+.vslider-hint {
+  font: var(--t-caption);
+  color: var(--label-3);
+}

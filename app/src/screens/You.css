@@ -1,0 +1,146 @@
+.you {
+  padding: 0 0 var(--s-8);
+}
+
+.you-hero {
+  margin: 0 var(--gutter) var(--s-6);
+  padding: var(--s-5);
+  background: var(--growth-soft);
+  border-radius: var(--r-md);
+}
+
+.you-hero-label {
+  font: var(--t-caption-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--label-2);
+}
+
+.you-hero-value {
+  font: var(--t-large-title);
+  font-size: 44px;
+  letter-spacing: -0.03em;
+  color: var(--growth);
+  line-height: 1.1;
+}
+
+.you-hero-sub {
+  font: var(--t-footnote);
+  color: var(--label-2);
+  line-height: 1.45;
+  margin-top: var(--s-1);
+}
+
+.you-hero-sub strong {
+  color: var(--label);
+}
+
+.you-warning {
+  margin: 0 var(--gutter) var(--s-6);
+  padding: var(--s-3) var(--s-4);
+  background: var(--spark-soft);
+  border-radius: var(--r-sm);
+  font: var(--t-footnote);
+  color: var(--label);
+}
+
+/* ---- Forms ------------------------------------------------------------------ */
+
+.you-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-4) var(--gutter) var(--s-10);
+}
+
+.you-callout {
+  padding: var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r-md);
+  font: var(--t-subhead);
+  color: var(--label-2);
+  line-height: 1.5;
+}
+
+.you-callout strong {
+  color: var(--growth);
+}
+
+/* ---- Sources ----------------------------------------------------------------- */
+
+.you-sources {
+  padding: var(--s-2) var(--gutter) var(--s-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.you-sources-intro {
+  font: var(--t-subhead);
+  color: var(--label-2);
+  line-height: 1.5;
+}
+
+.you-source {
+  padding: var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r-md);
+}
+
+.you-source-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.you-source-label {
+  font: var(--t-subhead);
+  font-weight: 600;
+}
+
+.you-source-value {
+  font: var(--t-headline);
+  color: var(--growth);
+}
+
+.you-source-meta {
+  font: var(--t-caption);
+  color: var(--label-3);
+  margin-top: 2px;
+}
+
+.you-source-note {
+  font: var(--t-footnote);
+  color: var(--label-2);
+  line-height: 1.45;
+  margin-top: var(--s-2);
+}
+
+.you-source-link {
+  display: inline-block;
+  margin-top: var(--s-2);
+  font: var(--t-caption);
+  color: var(--growth);
+}
+
+/* ---- Limits ------------------------------------------------------------------- */
+
+.you-limits {
+  padding: var(--s-2) var(--gutter) var(--s-10);
+}
+
+.you-limits h3 {
+  font: var(--t-headline);
+  margin: var(--s-5) 0 var(--s-2);
+}
+
+.you-limits h3:first-child {
+  margin-top: 0;
+}
+
+.you-limits p {
+  font: var(--t-subhead);
+  color: var(--label-2);
+  line-height: 1.55;
+}

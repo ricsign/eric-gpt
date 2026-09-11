@@ -1,0 +1,126 @@
+.mech {
+  margin: var(--s-4) 0;
+}
+
+.mech-fig {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r-md);
+}
+
+.mech-fig figcaption {
+  font: var(--t-footnote);
+  color: var(--label-2);
+  line-height: 1.45;
+}
+
+.mech-svg {
+  width: 100%;
+  height: auto;
+}
+
+.mech-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.mech-line--flat {
+  stroke: var(--label-3);
+  stroke-dasharray: 4 5;
+}
+
+.mech-line--curve {
+  stroke: var(--growth);
+}
+
+.mech-line--drag {
+  stroke: var(--drag);
+}
+
+.mech-dot {
+  fill: var(--growth);
+}
+.mech-dot--flat {
+  fill: var(--label-3);
+}
+.mech-dot--drag {
+  fill: var(--drag);
+}
+
+.mech-label {
+  font-size: 9px;
+  font-weight: 600;
+  fill: var(--label-2);
+}
+.mech-label--growth {
+  fill: var(--growth);
+}
+.mech-label--drag {
+  fill: var(--drag);
+}
+
+/* ---- Doubling ---- */
+
+.mech-doubling {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-2);
+  height: 110px;
+}
+
+.mech-doubling-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+}
+
+.mech-doubling-bar {
+  width: 100%;
+  min-height: 4px;
+  border-radius: var(--r-xs) var(--r-xs) 2px 2px;
+  background: var(--growth);
+  opacity: 0.85;
+}
+
+.mech-doubling-label {
+  font: var(--t-caption-2);
+  font-weight: 700;
+  color: var(--label);
+}
+
+.mech-doubling-year {
+  font: var(--t-caption-2);
+  color: var(--label-3);
+}
+
+/* ---- Brackets ---- */
+
+.mech-brackets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mech-bracket {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-xs);
+  background: var(--growth-soft);
+  font: var(--t-caption-2);
+  font-weight: 700;
+  color: var(--growth);
+}
+
+.mech-bracket:last-child {
+  background: var(--fill);
+  color: var(--label-2);
+}

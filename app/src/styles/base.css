@@ -1,0 +1,201 @@
+/*
+ * Base layer: everything that makes a web page stop behaving like a web page.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Kill the iOS font-size bump when the device rotates to landscape. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* The shell never scrolls; the scroll container inside each screen does. This is
+     what stops the whole page rubber-banding away from the status bar. */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--bg);
+  color: var(--label);
+  font: var(--t-body);
+  /* manipulation removes the 300ms double-tap-zoom delay while leaving pinch-zoom
+     available — the accessible way to get native tap latency. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Chrome for a native feel; re-enabled per-element on anything worth copying. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#root {
+  height: 100%;
+  isolation: isolate;
+}
+
+/* Long-form content and numbers people may want to copy stay selectable. */
+.selectable,
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* ---- Typography resets ----------------------------------------------------- */
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--growth);
+  text-decoration: none;
+}
+
+/* ---- Controls -------------------------------------------------------------- */
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  /* >=16px prevents iOS Safari from zooming the viewport on focus. Do not lower it. */
+  font-size: max(16px, 1rem);
+  border: 0;
+  background: none;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+img,
+svg,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---- Focus ----------------------------------------------------------------- */
+/* Pointer users get nothing; keyboard users get a clear, brand-coloured ring. */
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--growth);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* ---- Scrolling ------------------------------------------------------------- */
+
+/*
+ * The one class every scrollable region uses. `overscroll-behavior: contain` keeps a
+ * scroll gesture that hits the end of this list from chaining up to the shell, which
+ * is what produces the "the whole app slid down" glitch on iOS.
+ */
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Utilities -------------------------------------------------------------- */
+
+.num {
+  font-family: var(--font-num);
+  /* Fixed-width digits: an animating balance must not shuffle its own layout. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.hairline-top {
+  box-shadow: inset 0 var(--hairline) 0 var(--separator);
+}
+.hairline-bottom {
+  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 var(--separator);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Pressable: the standard iOS "scale down slightly under the finger" response. */
+.pressable {
+  transition: transform var(--dur-tap) var(--ease-tap), opacity var(--dur-tap) var(--ease-tap);
+}
+.pressable:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+@media (hover: hover) {
+  .pressable:hover {
+    opacity: 0.92;
+  }
+}

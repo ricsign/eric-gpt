@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!--
+      viewport-fit=cover  -> lets the page paint under the notch/home indicator so
+                             env(safe-area-inset-*) becomes non-zero and we can lay
+                             out like a real iOS app.
+      interactive-widget  -> the on-screen keyboard resizes the viewport instead of
+                             scrolling the page out from under us.
+      No user-scalable=no: pinch-zoom stays available for accessibility. Focus-zoom
+      on inputs is prevented the correct way instead (>=16px font on all controls),
+      and double-tap zoom delay is killed with touch-action: manipulation.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+
+    <title>Compound — learn money by watching it grow</title>
+    <meta
+      name="description"
+      content="Compound turns your real numbers into two-minute money lessons. See what waiting costs you, what one decision is worth, and learn the thing that actually moves the needle."
+    />
+
+    <!-- Standalone / home-screen behaviour -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Compound" />
+    <!-- black-translucent: content runs under the status bar; safe-area insets handle it -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Match the chrome to the app surface in both themes -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F5F5F7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+    <meta name="color-scheme" content="light dark" />
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Open Graph: the share card is a growth loop, so it gets real attention -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Compound — learn money by watching it grow" />
+    <meta
+      property="og:description"
+      content="Two minutes a day. Your real numbers. See what compounding is quietly doing to your money."
+    />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script>
+      // Apply the saved theme before first paint so there is no flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('compound.theme');
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.setAttribute('data-theme', t);
+          }
+        } catch (e) {
+          /* private mode / blocked storage — fall back to the system theme */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

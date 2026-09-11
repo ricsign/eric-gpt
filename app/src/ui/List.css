@@ -1,0 +1,106 @@
+.listgroup {
+  margin: 0 0 var(--s-6);
+}
+
+.listgroup-header {
+  font: var(--t-footnote);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--label-2);
+  padding: 0 calc(var(--gutter) + var(--s-4)) var(--s-2);
+}
+
+.listgroup-body {
+  margin: 0 var(--gutter);
+  background: var(--surface);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.listgroup-footer {
+  font: var(--t-footnote);
+  color: var(--label-2);
+  padding: var(--s-2) calc(var(--gutter) + var(--s-4)) 0;
+}
+
+.row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: var(--s-3) var(--s-4);
+  text-align: left;
+  color: var(--label);
+  background: var(--surface);
+}
+
+/*
+ * The separator is drawn as a pseudo-element inset to the text column, not as a
+ * border, so it automatically disappears on the last row without a :last-child
+ * override fighting a border-collapse.
+ */
+.row + .row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--s-4);
+  right: 0;
+  height: var(--hairline);
+  background: var(--separator);
+}
+
+.row[data-interactive]:active {
+  background: var(--fill-3);
+}
+
+.row[data-destructive] .row-label {
+  color: var(--drag);
+}
+
+.row-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border-radius: var(--r-xs);
+  background: var(--fill);
+  color: var(--label-2);
+}
+.row-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.row-label {
+  font: var(--t-body);
+  color: inherit;
+}
+
+.row-detail {
+  font: var(--t-footnote);
+  color: var(--label-2);
+}
+
+.row-value {
+  flex: none;
+  font: var(--t-body);
+  color: var(--label-2);
+}
+
+.row-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--label-3);
+}
