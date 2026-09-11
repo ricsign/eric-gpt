@@ -120,7 +120,8 @@ export async function renderGapCard(input: GapCardInput): Promise<Blob | null> {
   input.stroke.forEach((pt, i) => {
     const x = chart.x + pt.x * chart.w
     const y = chart.y + (1 - pt.y) * chart.h
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
   })
   ctx.stroke()
 
@@ -131,7 +132,8 @@ export async function renderGapCard(input: GapCardInput): Promise<Blob | null> {
   input.truth.forEach((pt, i) => {
     const x = chart.x + pt.t * chart.w
     const y = chart.y + chart.h - (Math.min(pt.value, input.yMax) / input.yMax) * chart.h
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    if (i === 0) ctx.moveTo(x, y)
+    else ctx.lineTo(x, y)
   })
   ctx.stroke()
 

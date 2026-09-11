@@ -8,6 +8,10 @@
   position: relative;
   width: 100%;
   background: var(--surface);
+  /* A visible edge, because in light mode the surface and the page background
+     are nearly the same value and the drawing area has to read as somewhere you
+     are invited to put your finger. */
+  box-shadow: inset 0 0 0 1px var(--separator);
   border-radius: var(--r-md);
   overflow: hidden;
   /*

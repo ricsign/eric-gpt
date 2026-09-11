@@ -16,3 +16,19 @@ createRoot(root).render(
     </StoreProvider>
   </StrictMode>,
 )
+
+/*
+ * Register the service worker so the app opens offline once it has been visited.
+ *
+ * Deliberately after first paint and in production only: a worker racing the
+ * first render buys nothing, and in development it would serve a stale bundle
+ * over the dev server's own hot updates.
+ */
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Blocked by a private window, an unsupported browser, or an insecure
+      // origin. The app works fine without it; there is nothing to report.
+    })
+  })
+}

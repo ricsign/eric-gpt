@@ -6,13 +6,34 @@
 /* ---- Readout ---------------------------------------------------------------- */
 
 .growthchart-readout {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   gap: var(--s-2);
   margin-bottom: var(--s-2);
-  /* Reserved so the chart does not jump when the scrub readout appears. */
+}
+
+/* Reserved only when the chart owns the headline, so the row cannot jump as the
+   value changes. When the surrounding screen owns it, the scrub value floats
+   instead — reserving space for something usually absent leaves dead air. */
+.growthchart-readout[data-owned] {
   min-height: 62px;
+}
+
+.growthchart-readout-main[data-floating] {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--s-1));
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.growthchart-readout-main[data-floating] .growthchart-readout-value {
+  font: var(--t-headline);
 }
 
 .growthchart-readout-main {

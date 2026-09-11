@@ -7,7 +7,6 @@ import { NumberRoll } from '../ui/NumberRoll'
 import { useStore } from '../state/store'
 import { growthSeries, futureValue } from '../lib/finance'
 import { money, moneyCompact, percent } from '../lib/format'
-import { spring } from '../lib/motion'
 import { haptic } from '../lib/haptics'
 import './Onboarding.css'
 
@@ -78,10 +77,12 @@ export function Onboarding() {
         <motion.div
           key={step}
           className="onb-step scroll"
-          initial={{ opacity: 0, x: 24 }}
+          initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -24 }}
-          transition={spring.smooth}
+          exit={{ opacity: 0, x: -20 }}
+          // Tween, not a spring: with mode="wait" the two halves run in series,
+          // and a spring's settling time doubles into a visible stall.
+          transition={{ duration: 0.16, ease: [0.32, 0.72, 0, 1] }}
         >
           {step === 'intro' && (
             <div className="onb-intro">

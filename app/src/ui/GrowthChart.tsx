@@ -157,9 +157,16 @@ export function GrowthChart({
     <div className="growthchart" ref={wrapRef}>
       {/* Live readout. Sits above the chart so a finger on the curve never covers it.
           When the parent owns the headline, only the split chips are shown. */}
-      <div className="growthchart-readout" aria-live="polite">
+      <div
+        className="growthchart-readout"
+        data-owned={showReadout || undefined}
+        aria-live="polite"
+      >
         {(showReadout || active) && (
-          <div className="growthchart-readout-main">
+          <div
+            className="growthchart-readout-main"
+            data-floating={!showReadout || undefined}
+          >
             <span className="growthchart-readout-value num">{moneyCompact(shown.balance)}</span>
             <span className="growthchart-readout-year">
               {active

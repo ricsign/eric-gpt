@@ -11,6 +11,7 @@ npm run dev        # http://localhost:5173
 npm test           # 179 unit tests, all of the money maths
 npm run build
 npm run shoot      # drives the app in Chromium and screenshots every screen
+npm run a11y       # reduced motion, keyboard operation, landmarks (needs a served build)
 ```
 
 ---
@@ -187,6 +188,7 @@ it is written, tested and cheap, not because it is load-bearing.
 | Haptics on iOS via the hidden `<input type="checkbox" switch>` trick, since Safari has no `navigator.vibrate`. Fragile by nature — Apple has been narrowing it — so it is isolated in one module and degrades to a silent no-op | `lib/haptics.ts` |
 | The curve canvas: pointer capture, monotonic x, `touch-action: pan-y` so a vertical flick still scrolls the page | `ui/CurveDraw.tsx` |
 | Safe areas, `dvh`, `overscroll-behavior: contain`, `touch-action: manipulation` | `styles/base.css` |
+| Offline: a hand-written worker, network-first for navigations so a stale contribution limit can never be served, cache-first for hashed assets. The asset list is injected at build time | `public/sw.js`, `scripts/build-sw.mjs` |
 | Tabular figures everywhere, so an animating balance never reflows | `.num` |
 
 Pinch-zoom is deliberately **not** disabled. Focus-zoom on inputs is prevented the
@@ -245,6 +247,7 @@ figure quoted in lesson copy is cross-checked against the engine by a test.
 - **The compliance guard** — lesson output is scanned for recommendation language, and commitment pre-fills are checked for second-person copy.
 - **The wedge guard** — a brand-new learner must be offered a curve to draw rather than a multiple choice, and every draw probe must leave axis headroom so the truth does not give away its own shape.
 - **Smoke** — `npm run shoot` drives the whole app in Chromium and fails on any console error.
+- **Accessibility** — `npm run a11y` checks the four things that break while still looking fine in a screenshot: reduced motion actually flattens the springs, the custom slider is operable from the keyboard, the tab order reaches real controls, and no `role="img"` SVG is unlabelled.
 
 ## Honest limitations
 

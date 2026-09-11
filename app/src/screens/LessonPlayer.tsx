@@ -44,6 +44,16 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
    * has crossed from education into personalised recommendation.
    */
   const [draft, setDraft] = useState<{ when: string; then: string } | null>(null)
+  /**
+   * Which beats have been answered.
+   *
+   * Only the probe is gated on this. Committing to a prediction before seeing
+   * anything is the mechanism the whole format rests on, so being able to tap
+   * Continue past it would quietly turn every lesson back into a slideshow.
+   * Practice items are not gated — skipping those is an autonomy affordance,
+   * not a hole in the pedagogy.
+   */
+  const [answered, setAnswered] = useState<Set<number>>(new Set())
 
   if (!lesson) return null
 
@@ -81,6 +91,7 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
         <LessonFooter
           beat={beat}
           isLast={isLast}
+          blocked={beat.kind === 'probe' && !answered.has(index)}
           draft={draft}
           onAdvance={advance}
           onFinish={finish}
@@ -96,22 +107,30 @@ export function LessonPlayer({ lessonId }: { lessonId: string }) {
         <div className="lp-progress-fill" style={{ transform: `scaleX(${progress})` }} />
       </div>
 
+      {/*
+        mode="wait" keeps the beats from overlapping in flow, but it means the
+        exit must finish before the enter starts — so the two transitions add up.
+        A spring here left roughly 800ms of blank screen between taps, which
+        reads as the app thinking. A short tween on each half keeps the total
+        under a third of a second, which reads as a page turn.
+      */}
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={index}
           className="lp-beat"
-          initial={{ opacity: 0, x: 20 }}
+          initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={spring.smooth}
+          exit={{ opacity: 0, x: -16 }}
+          transition={{ duration: 0.15, ease: [0.32, 0.72, 0, 1] }}
         >
           <BeatView
             beat={beat}
             draft={draft}
             setDraft={setDraft}
-            onScore={(correct) =>
+            onScore={(correct) => {
               setScore((s) => ({ correct: s.correct + (correct ? 1 : 0), total: s.total + 1 }))
-            }
+              setAnswered((a) => (a.has(index) ? a : new Set(a).add(index)))
+            }}
           />
         </motion.div>
       </AnimatePresence>
@@ -621,6 +640,7 @@ function ActionBeatView({
 function LessonFooter({
   beat,
   isLast,
+  blocked,
   draft,
   onAdvance,
   onFinish,
@@ -628,6 +648,8 @@ function LessonFooter({
 }: {
   beat: Beat
   isLast: boolean
+  /** True while the learner still owes this beat an answer. */
+  blocked: boolean
   draft: { when: string; then: string } | null
   onAdvance: () => void
   onFinish: () => void
@@ -666,9 +688,15 @@ function LessonFooter({
   }
 
   return (
-    <Button block size="lg" onClick={isLast ? onFinish : onAdvance} icon={undefined}>
-      Continue
-      <Icon name="chevron" size={14} stroke />
+    <Button
+      block
+      size="lg"
+      disabled={blocked}
+      onClick={isLast ? onFinish : onAdvance}
+      icon={undefined}
+    >
+      {blocked ? 'Commit to an answer first' : 'Continue'}
+      {!blocked && <Icon name="chevron" size={14} stroke />}
     </Button>
   )
 }
