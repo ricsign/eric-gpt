@@ -1,5 +1,8 @@
 # Compound
 
+**Live: https://compound-rose-delta.vercel.app** — open it on an iPhone and add it
+to the Home Screen; it runs full-screen and works offline.
+
 A financial-literacy web app built to feel like a native iOS app, and built around
 one bet: **teaching finance as a curriculum does not change behaviour, so don't
 build one.**
@@ -13,6 +16,17 @@ npm run build
 npm run shoot      # drives the app in Chromium and screenshots every screen
 npm run a11y       # reduced motion, keyboard operation, landmarks (needs a served build)
 ```
+
+`shoot` and `a11y` take a `BASE` env var, so they can be pointed at a deployed
+URL as well as a local server.
+
+## Deployment
+
+Vercel, linked to this repository — every push builds. `vercel.json` carries the
+one header that actually matters for a PWA: `sw.js` is served
+`must-revalidate`, because a service worker cached like a normal static asset
+pins every returning visitor to whichever build they first saw, permanently.
+Hashed assets get the opposite treatment, immutable for a year.
 
 ---
 

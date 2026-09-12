@@ -21,6 +21,32 @@ export function chromiumPath() {
   return candidates[0]
 }
 
+/**
+ * Proxy settings for the sandboxed environment, if one is configured.
+ *
+ * Chromium does not read HTTPS_PROXY the way curl and Node do, so without this
+ * it simply cannot reach anything off-box — which is exactly what you need when
+ * pointing these scripts at a deployed URL rather than a local server. The CA
+ * for the proxy is already in the browser's trust store, so nothing about
+ * certificate verification is relaxed here.
+ */
+function proxyConfig() {
+  const server = process.env.HTTPS_PROXY || process.env.https_proxy
+  if (!server) return undefined
+
+  const bypass = (process.env.NO_PROXY || process.env.no_proxy || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(',')
+
+  return bypass ? { server, bypass } : { server }
+}
+
 export async function launch(options = {}) {
-  return chromium.launch({ executablePath: chromiumPath(), ...options })
+  return chromium.launch({
+    executablePath: chromiumPath(),
+    proxy: proxyConfig(),
+    ...options,
+  })
 }
