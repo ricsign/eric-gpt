@@ -1,0 +1,73 @@
+/*
+ * The drag control.
+ *
+ * A segmented meter with no thumb: the value is wherever the finger is, so the
+ * target is the whole bar and the blocks are pure readout.
+ */
+
+.blockbar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  /* The bar can be shorter than this; the target never is. Padding rather than
+     margin, so the extra height is inside the hit area. */
+  min-height: var(--tap);
+  padding-block: var(--s-1);
+
+  /* Hands every gesture to the pointer handlers. Without this the browser
+     claims horizontal drags for scrolling and the control dies on iOS. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.blockbar[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.blockbar-track {
+  display: flex;
+  /* Segment gaps show the background through, the same way tile hairlines do. */
+  gap: 2px;
+  width: 100%;
+  height: 46px;
+  /* Nothing inside may take the pointer; the host is the only hit target. */
+  pointer-events: none;
+}
+
+.blockbar-block {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: var(--r);
+  background: var(--surface-2);
+  /* Short enough that a tap reads as a sweep across the blocks rather than a
+     flash — and killed outright during a drag, below. */
+  transition: background-color calc(var(--dur-tap) * 0.75) linear;
+}
+
+.blockbar-block[data-state='filled'] {
+  background: var(--fg);
+}
+.blockbar-block[data-state='filled'][data-tint='accent'] {
+  background: var(--accent);
+}
+.blockbar-block[data-state='filled'][data-tint='loss'] {
+  background: var(--loss);
+}
+
+/*
+ * While a finger is down the fill must be exactly where the finger is. A
+ * transition here would leave a 90ms smear trailing the thumb, which reads as
+ * lag in the one place the product cannot afford it.
+ */
+.blockbar[data-dragging] .blockbar-block {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blockbar-block {
+    transition: none;
+  }
+}

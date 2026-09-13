@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Device } from './ui/Device'
 import { Salary } from './screens/Salary'
@@ -17,6 +17,7 @@ import {
   type CallResult,
 } from './calls/types'
 import { callIndex, callNumber, compoundDay } from './lib/schedule'
+import { callNoFromPath, pathForCall, setPath } from './lib/route'
 import { profileOrDefault, resultFor, scoredResults, useStore } from './state/store'
 import './App.css'
 
@@ -40,8 +41,29 @@ export function App() {
   const lockIn = useStore((s) => s.lockIn)
 
   const day = compoundDay()
-  const callNo = callNumber(day)
+  const todayNo = callNumber(day)
+
+  /**
+   * A deep link opens the call it names, not today's.
+   *
+   * That is the whole point of the link on a shared receipt: a link that
+   * resolved to "today" would be useless the moment the day rolled over, and
+   * the recipient would see a different call from the one they were sent. The
+   * path is read once, on mount — changing it later would yank the call out
+   * from under someone mid-drag.
+   */
+  const [linkedNo] = useState(() =>
+    typeof location === 'undefined' ? null : callNoFromPath(location.pathname),
+  )
+  const callNo = linkedNo ?? todayNo
   const call = useMemo(() => CALLS[callIndex(callNo, CALLS.length)], [callNo])
+
+  // Keep the address bar honest, so a refresh or a copied URL lands in the same
+  // place. replaceState, not push: the loop is linear and Back should leave the
+  // app rather than walk backwards through committed answers.
+  useEffect(() => {
+    setPath(pathForCall(callNo))
+  }, [callNo])
 
   const existing = resultFor(results, call.id)
   const [screen, setScreen] = useState<Screen>(existing ? 'outcome' : 'call')
@@ -62,16 +84,17 @@ export function App() {
         delta: at65 - compute(best, p).at65,
         at65,
         day,
-        // A call closes once answered. Coming back the same day is practice and
-        // must not move the Tab, or the number stops meaning anything.
-        practice: Boolean(existing),
+        // A call closes once answered. Coming back the same day, or arriving on
+        // an older call through a shared link, is practice: it must not move the
+        // Tab, or the number stops meaning anything.
+        practice: Boolean(existing) || callNo !== todayNo,
       }
 
       lockIn(result, stepCount(call.variable))
       setAnswer(value)
       setScreen('outcome')
     },
-    [call, profile, day, existing, lockIn],
+    [call, profile, day, existing, lockIn, callNo, todayNo],
   )
 
   if (!profile) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { tabSummary } from '../screens/Tab'
+import { tabSummary } from './Tab'
 import { formatCountdown, msUntilNextCall } from '../lib/schedule'
 import { moneyCompact } from '../lib/format'
 import type { CallResult } from '../calls/types'
