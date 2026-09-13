@@ -398,7 +398,7 @@ function paintCard(
   const stamp = stampText(input.verdict)
   const delta = deltaLine(input)
 
-  ctx.font = font(400, 44, 'display')
+  ctx.font = font(700, 44, 'display')
   const titleLines = wrap(ctx, input.title.toUpperCase(), inner, 3)
 
   let y = TEAR_D + BRAND_H
@@ -432,7 +432,7 @@ function paintCard(
   y += 54
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(400, 44, 'display')
+    ctx.font = font(700, 44, 'display')
     titleLines.forEach((l, i) => ctx.fillText(l, PAD, y + i * TITLE_LH))
   }
   y += (titleLines.length - 1) * TITLE_LH + 34
@@ -477,7 +477,7 @@ function paintCard(
     ctx.globalAlpha = 0.62
     drawTracked(ctx, 'TOTAL AT 65', PAD, y - 8, 3)
     ctx.globalAlpha = 1
-    ctx.font = font(400, 78, 'display')
+    ctx.font = font(700, 78, 'display')
     ctx.fillText(money(input.at65), PAD, y + 62)
   }
 

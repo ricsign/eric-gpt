@@ -325,3 +325,289 @@ export const emergencyFund: ComputeFn = (value, profile) => {
     blockTint: (index) => (index <= 2 ? 'loss' : index <= 6 ? 'accent' : 'plain'),
   }
 }
+
+/* ==========================================================================
+ * 4. promoDeadline
+ *
+ * Value: months taken to clear a $3,000 0%-APR furniture offer, 1-24, with a
+ * 12-month promotional window.
+ *
+ * Model. Equal principal payments of 3000/months. Inside the window the offer
+ * is genuinely free. Miss it by a single month and the deferred-interest clause
+ * fires: interest is charged retroactively at 26.99% on the balance carried
+ * since day one, capitalised, and the remaining balance then amortises at that
+ * rate. Retroactive interest over the window is the closed form of an
+ * arithmetically declining balance, which is how issuers compute average daily
+ * balance.
+ *
+ * The cash the player has not yet paid is assumed to sit in savings at the FDIC
+ * competitive rate, which is why paying in one month is very slightly worse
+ * than paying in twelve. That float is computed over the player's declared
+ * schedule, not over the extended one a missed deadline creates — a
+ * simplification worth a few dollars on a number that turns on a thousand.
+ *
+ * Optimal is 12: the last month that is still free.
+ * ========================================================================== */
+
+const PROMO_PRINCIPAL = 3_000
+const PROMO_WINDOW = 12
+const PROMO_APR = 0.2699
+
+function promoPlan(months: number): { interest: number; float: number; actual: number } {
+  const m = Math.max(1, Math.round(months))
+  const pay = PROMO_PRINCIPAL / m
+
+  // Interest earned on money not yet handed over, across the declared schedule.
+  const float =
+    CASH_M * (m * PROMO_PRINCIPAL - pay * ((m * (m - 1)) / 2))
+
+  if (m <= PROMO_WINDOW) return { interest: 0, float, actual: m }
+
+  const i = PROMO_APR / 12
+  // Retroactive to day one, on the balance that was outstanding each month.
+  const accrued =
+    i * (PROMO_WINDOW * PROMO_PRINCIPAL - pay * ((PROMO_WINDOW * (PROMO_WINDOW - 1)) / 2))
+  const carried = PROMO_PRINCIPAL - pay * PROMO_WINDOW + accrued
+
+  const n2 = monthsToClear(carried, i, pay)
+  const after = Number.isFinite(n2) ? pay * n2 - carried : 0
+
+  return { interest: accrued + after, float, actual: PROMO_WINDOW + n2 }
+}
+
+export const promoDeadline: ComputeFn = (value, profile) => {
+  const m = Math.min(24, Math.max(1, Math.round(value)))
+  const here = promoPlan(m)
+  const worst = promoPlan(24)
+
+  const netCost = here.interest - here.float
+  const avoided = worst.interest - worst.float - netCost
+  const at65 = fvLump(avoided, monthsTo65(profile))
+
+  return {
+    cost: PROMO_PRINCIPAL / m,
+    benefit: avoided / Math.max(1 / 12, here.actual / 12),
+    at65,
+    breakdown: [
+      line('PAYMENT / MO', money(PROMO_PRINCIPAL / m)),
+      line('DEFERRED INTEREST', money(here.interest), true),
+      line('ACTUALLY CLEAR IN', duration(here.actual)),
+      line('TOTAL PAID', money(PROMO_PRINCIPAL + here.interest)),
+      line('AT 65', moneyCompact(at65)),
+    ],
+    // Index 0 is month 1. Everything inside the window is free; the block after
+    // it is where the retroactive clause detonates.
+    blockTint: (index) => (index < PROMO_WINDOW ? 'accent' : 'loss'),
+  }
+}
+
+/* ==========================================================================
+ * 5. anchorOffer
+ *
+ * Value: counter-offer as a percent above the initial offer, 0-20.
+ *
+ * Model. Upside is linear and permanent: one point of base compounds through
+ * 3% raises for the rest of the career and is invested at 7% to 65. Downside is
+ * convex: P(offer pulled) = 1 - e^(-(a/A)^2), and a pulled offer costs a
+ * three-month search gap, also carried to 65. Expected value is
+ * (1-p)*upside - p*cost, and its derivative gives A^2 = 2a^2 + 2a*(cost/upside)
+ * at the optimum. A = 12.178 is that expression solved backwards at a = 8 for
+ * the default profile, which is how the constant was chosen.
+ *
+ * Say plainly what this is: the withdrawal curve is a stylised shape, not a
+ * measurement. Nobody publishes a credible P(pulled | ask) and this model does
+ * not pretend to. It is calibrated so the optimum lands in the 5-10% band that
+ * recruiters and negotiation coaches consistently recommend, and what it
+ * teaches is the shape of the tradeoff — linear gain against convex risk — not
+ * a probability forecast. The optimum drifts down with age in the model, which
+ * is correct: fewer years of career left to amortise the same risk over.
+ * ========================================================================== */
+
+const ASK_RISK_SCALE = 12.178
+const SEARCH_GAP_YEARS = 0.25
+const RAISE = 0.03
+
+/** Value at 65 of $1/yr of extra base pay that grows with raises. */
+function raiseStream(years: number): number {
+  const n = Math.max(1, Math.round(years))
+  const x = (1 + RAISE) / (1 + NOMINAL)
+  return Math.pow(1 + NOMINAL, n) * ((1 - Math.pow(x, n)) / (1 - x))
+}
+
+export const anchorOffer: ComputeFn = (value, profile) => {
+  const ask = Math.max(0, value)
+  const years = Math.max(1, RETIRE_AT - profile.age)
+  const n = monthsTo65(profile)
+
+  const pulled = 1 - Math.exp(-Math.pow(ask / ASK_RISK_SCALE, 2))
+  const perPoint = 0.01 * profile.salary * raiseStream(years)
+  const gapCost = fvLump(SEARCH_GAP_YEARS * profile.salary, n)
+
+  const at65 = (1 - pulled) * perPoint * ask - pulled * gapCost
+  const firstYear = (1 - pulled) * 0.01 * ask * profile.salary
+
+  return {
+    // No cash leaves the player's pocket here; what they spend is risk. Shown
+    // as the expected search-gap loss spread over a year so it is comparable
+    // to every other call's monthly cost.
+    cost: (pulled * SEARCH_GAP_YEARS * profile.salary) / 12,
+    benefit: firstYear,
+    at65,
+    breakdown: [
+      line('ASK', percent(ask / 100, 0)),
+      line('YEAR ONE', money(firstYear)),
+      line('OFFER PULLED', percent(pulled, 0)),
+      line('LIFETIME AT 65', moneyCompact(at65), true),
+    ],
+  }
+}
+
+/* ==========================================================================
+ * 6. rothSplit
+ *
+ * Value: percent of contributions directed to Roth, 0-100.
+ *
+ * Model. The player directs 10% of gross pay (capped at the 2026 deferral
+ * limit) at retirement. The pre-tax share reduces taxable income; the Roth
+ * share is taxed on the way in, and the tax is computed bracket by bracket
+ * against the 2026 single brackets rather than at a flat marginal rate, so a
+ * contribution that straddles a bracket edge is handled correctly.
+ *
+ * Everything is projected in TODAY'S DOLLARS, at a 5% real return with 1% real
+ * raises — because brackets are inflation-indexed, and comparing a nominal 2061
+ * income to 2026 brackets would invent tax the player will never pay. This is
+ * the only call whose at65 is real rather than nominal, and the receipt says so.
+ *
+ * The retirement rate is computed, not assumed: 4% of the pre-tax balance is
+ * withdrawn on top of Social Security (40% replacement of final pay, 85%
+ * taxable — the share that applies to anyone with meaningful withdrawals), and
+ * the rate that matters is the marginal one on the withdrawal itself, not the
+ * effective rate on everything. The 40% replacement is the one unsourced input
+ * and it moves the answer, so it is stated.
+ *
+ * The honest result, and it is worth saying out loud: for a single filer this
+ * model has pre-tax winning or tying at every salary. At the default $62,000
+ * the two rates land on 12% exactly and the dial is flat to the dollar — a
+ * genuine wash, which is the real lesson of the Roth argument. Above and below
+ * that band pre-tax wins outright, so the optimal is 0.
+ * ========================================================================== */
+
+const REAL_RETURN = 0.05
+const REAL_RAISE = 0.01
+const SS_REPLACEMENT = 0.4
+const SS_TAXABLE_SHARE = 0.85
+
+/** Value at 65, in today's dollars, of $1/yr of contributions growing with raises. */
+function realStream(years: number): number {
+  const n = Math.max(1, Math.round(years))
+  const x = (1 + REAL_RAISE) / (1 + REAL_RETURN)
+  return Math.pow(1 + REAL_RETURN, n) * ((1 - Math.pow(x, n)) / (1 - x))
+}
+
+export const rothSplit: ComputeFn = (value, profile) => {
+  const share = Math.min(1, Math.max(0, value / 100))
+  const years = Math.max(1, RETIRE_AT - profile.age)
+
+  const gross = Math.min(profile.salary * 0.1, FACTS.contrib401k.value)
+  const trad = gross * (1 - share)
+  const taxableNow = Math.max(0, profile.salary - STD_DED)
+
+  const taxWithout = federalTax(taxableNow)
+  const taxWithTrad = federalTax(Math.max(0, taxableNow - trad))
+  const taxSaved = taxWithout - taxWithTrad
+  // The Roth share is the slice of income left exposed after the pre-tax slice
+  // comes out, so its tax is the difference across exactly that slice.
+  const rothTax = taxWithTrad - federalTax(Math.max(0, taxableNow - gross))
+
+  const g = realStream(years)
+  const tradFv = trad * g
+  const rothFv = (gross * share - rothTax) * g
+
+  const ss = SS_REPLACEMENT * profile.salary * Math.pow(1 + REAL_RAISE, years)
+  const ssTaxable = ss * SS_TAXABLE_SHARE
+  const withdrawal = tradFv * 0.04
+  const base = federalTax(Math.max(0, ssTaxable - STD_DED))
+  const retireRate =
+    withdrawal > 0
+      ? (federalTax(Math.max(0, ssTaxable + withdrawal - STD_DED)) - base) / withdrawal
+      : 0
+
+  const at65 = tradFv * (1 - retireRate) + rothFv
+  const cost = (gross - taxSaved) / 12
+
+  return {
+    cost,
+    benefit: taxSaved,
+    at65,
+    breakdown: [
+      line('TAKE-HOME HIT / MO', money(cost)),
+      line('RATE NOW', percent(trad > 0 ? taxSaved / trad : 0, 1)),
+      line('RATE AT 65', percent(retireRate, 1)),
+      line('TAX SAVED / YR', money(taxSaved)),
+      line("AT 65, TODAY'S $", moneyCompact(at65), true),
+    ],
+  }
+}
+
+/* ==========================================================================
+ * 7. repairOrReplace
+ *
+ * Value: dollars spent repairing a $5,000 car, 0-4,000.
+ *
+ * Model. A repair buys life with diminishing returns and a hard ceiling: an old
+ * car has a finite amount left in it no matter what you spend. Months bought =
+ * 28 * (1 - e^(-R/1000)). Both constants are judgement calls — a $5,000 car
+ * with a big repair behind it is good for a bit over two more years, and the
+ * first $1,000 buys most of that.
+ *
+ * The alternative is a $22,000 used car on a 60-month loan at 7.5%, which is
+ * $440.83 a month, computed here rather than quoted. Neither figure is in
+ * facts.ts, so both are assumptions.
+ *
+ * The comparison is total cost of having wheels over the same 60 months:
+ * spend R, drive it for L(R) months, then start the loan. Replacing today is
+ * the R=0 case. The optimum falls out of the shape at R* = 1000 * ln(payment *
+ * 28 / 1000) = $2,513, which on a $100 grid is $2,500 — half the car's value,
+ * which is the rule of thumb the call is teaching.
+ * ========================================================================== */
+
+const CAR_VALUE = 5_000
+const CAR_LIFE_CEILING = 28
+const CAR_LIFE_SCALE = 1_000
+const REPLACEMENT_PRICE = 22_000
+const REPLACEMENT_TERM = 60
+const REPLACEMENT_APR = 0.075
+
+const REPLACEMENT_PAYMENT = (() => {
+  const i = REPLACEMENT_APR / 12
+  return (REPLACEMENT_PRICE * i) / (1 - Math.pow(1 + i, -REPLACEMENT_TERM))
+})()
+
+const carHorizonCost = (repair: number): number => {
+  const life = CAR_LIFE_CEILING * (1 - Math.exp(-repair / CAR_LIFE_SCALE))
+  return repair + REPLACEMENT_PAYMENT * Math.max(0, REPLACEMENT_TERM - life)
+}
+
+export const repairOrReplace: ComputeFn = (value, profile) => {
+  const repair = Math.max(0, value)
+  const life = CAR_LIFE_CEILING * (1 - Math.exp(-repair / CAR_LIFE_SCALE))
+  const total = carHorizonCost(repair)
+  const saved = carHorizonCost(0) - total
+
+  const n = monthsTo65(profile)
+  // The saving arrives month by month over the five years, then compounds.
+  const at65 = fvLump(fvAnnuity(saved / REPLACEMENT_TERM, REPLACEMENT_TERM), n - REPLACEMENT_TERM)
+
+  return {
+    cost: total / REPLACEMENT_TERM,
+    benefit: saved / 5,
+    at65,
+    breakdown: [
+      line('REPAIR', money(repair)),
+      line('SHARE OF VALUE', percent(repair / CAR_VALUE, 0)),
+      line('BUYS YOU', duration(life)),
+      line('5-YR COST OF WHEELS', money(total), true),
+      line('AT 65', moneyCompact(at65)),
+    ],
+  }
+}

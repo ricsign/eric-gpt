@@ -1,0 +1,239 @@
+/*
+ * The receipt. The only paper in the product, the only shadow in the product,
+ * and the only thing here designed to be looked at somewhere other than here.
+ *
+ * The whole card is tuned for 120px wide in a feed. At that size everything
+ * below 12px is texture, not text, so the design commits to exactly three marks
+ * that must survive the shrink — the ink brand band, the figure at 65, and the
+ * stamp — and lets the rest become the grey noise that makes a receipt read as a
+ * receipt from across the room.
+ */
+
+.receipt-lift {
+  /*
+   * Rotation lives on the wrapper and the clip on the card: a filter applied to
+   * the same element as its clip-path is drawn from the unclipped box in some
+   * engines, which puts a rectangular shadow behind a torn edge.
+   */
+  transform: rotate(1.05deg);
+  filter: drop-shadow(0 16px 30px rgba(0, 0, 0, 0.62));
+  /* The rotated bounding box is ~10px wider than the card; without the inset it
+     clips against the screen gutter and the paper loses its edge. */
+  width: calc(100% - 14px);
+  margin-inline: auto;
+}
+
+.receipt {
+  /* Tone steps are mixed from the two receipt tokens so the paper stays one
+     material — a grey borrowed from the dark UI reads as dirt on cream. */
+  --ink-2: color-mix(in srgb, var(--ink) 62%, var(--paper));
+  --ink-3: color-mix(in srgb, var(--ink) 34%, var(--paper));
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  background: var(--paper);
+  color: var(--ink);
+  /* Top padding is the tear depth: the clip bites into it, never into content. */
+  padding: 11px 18px 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Brand -------------------------------------------------------------------
+ * A solid band, not a wordmark. At thumbnail size the letters go and the band
+ * stays, and the band alone is enough to recognise the card in a feed.
+ */
+
+.receipt-brand {
+  margin: 0 -18px;
+  padding: 9px 0;
+  background: var(--ink);
+  text-align: center;
+}
+
+.receipt-brand-text {
+  font: 700 15px/1 var(--data);
+  letter-spacing: 0.34em;
+  /* The band is ink, so the type is knocked out of it in paper. */
+  color: var(--paper);
+  /* Tracking adds a trailing gap that decentres the word inside a centred box. */
+  margin-left: 0.34em;
+}
+
+.receipt-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -2px;
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--ink-2);
+}
+
+/* ---- Rules ------------------------------------------------------------------- */
+
+.receipt-rule {
+  height: 2px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--ink-3) 0 4px,
+    transparent 4px 9px
+  );
+}
+
+.receipt-rule--double {
+  height: 7px;
+  background-image: linear-gradient(var(--ink) 0 3px, transparent 3px 5px, var(--ink) 5px 7px);
+}
+
+.receipt-title {
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+  margin: 2px 0;
+}
+
+/* ---- Line items ---------------------------------------------------------------
+ * The dotted leader is a repeating gradient rather than a run of periods. A row
+ * of "." characters breaks at a different point at every width and at thumbnail
+ * size collapses into a smear that looks like a rendering fault.
+ */
+
+.receipt-items {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.receipt-item {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.receipt-k {
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.receipt-leader {
+  flex: 1 1 auto;
+  min-width: 14px;
+  align-self: flex-end;
+  height: 2px;
+  margin: 0 6px 3px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--ink-3) 0 2px,
+    transparent 2px 5px
+  );
+}
+
+.receipt-v {
+  font: var(--t-data);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* The line the call turns on carries the weight, so the eye lands there first. */
+.receipt-item[data-emphasis] .receipt-k {
+  color: var(--ink);
+}
+.receipt-item[data-emphasis] .receipt-v {
+  font-weight: 700;
+}
+
+/* ---- The number ---------------------------------------------------------------
+ * One figure, as large as the card allows. This is the mark that has to survive
+ * at 120px, so nothing else on the receipt is permitted to compete with it.
+ */
+
+.receipt-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.receipt-hero {
+  font: 700 38px/1 var(--display);
+  letter-spacing: var(--track-display);
+  color: var(--ink);
+}
+
+.receipt-delta {
+  margin-top: -4px;
+}
+.receipt-delta[data-verdict='short'] .receipt-k,
+.receipt-delta[data-verdict='short'] .receipt-v {
+  color: var(--loss);
+}
+
+/* ---- Stamp --------------------------------------------------------------------
+ * Rubber, not a label: rotated off the grid, heavy, wildly letterspaced, and
+ * ruled above and below so it reads as ink pressed onto the paper after the
+ * fact. Second of the three marks that survive the thumbnail.
+ */
+
+.receipt-stamp {
+  align-self: center;
+  max-width: 100%;
+  margin: var(--s-2) 0;
+  padding: 6px 12px;
+  border-block: 4px double currentcolor;
+  transform: rotate(-2.6deg);
+  color: var(--ink);
+  /* Ink never sits perfectly solid on a stamp. */
+  opacity: 0.9;
+}
+
+.receipt-stamp[data-verdict='short'],
+.receipt-stamp[data-verdict='over'] {
+  color: var(--loss);
+}
+
+.receipt-stamp-text {
+  display: block;
+  font: 700 13px/1.1 var(--data);
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+  margin-left: 0.2em;
+}
+
+/* ---- Barcode ------------------------------------------------------------------
+ * Bar widths come from the player's result, so two people who played the same
+ * call differently carry visibly different bars. Third surviving mark: at
+ * thumbnail size it is a dense band, which is exactly what a barcode looks like
+ * from that distance anyway.
+ */
+
+.receipt-barcode {
+  width: 100%;
+  height: 36px;
+  fill: var(--ink);
+}
+
+.receipt-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin-top: -4px;
+  font: var(--t-data-sm);
+  letter-spacing: var(--track-data-wide);
+  color: var(--ink-3);
+}
+
+.receipt-domain {
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink);
+}
