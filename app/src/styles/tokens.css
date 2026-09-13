@@ -1,77 +1,82 @@
 /*
  * Design tokens.
  *
- * The palette is built on Apple's semantic system colours (label / separator /
- * grouped-background families) so the app inherits iOS's contrast relationships for
- * free, then layers one opinionated brand hue on top: "growth", the green that every
- * compounding curve in the app is drawn in.
+ * The restraint is the brand. No rounded cards beyond 3px, no gradients, no
+ * shadows except on the receipt, no icons that are not geometric primitives,
+ * no emoji, no illustration, no mascot.
  *
- * Every colour is defined on bare :root first. Dark mode only *redefines* tokens, so
- * nothing can end up with its only definition inside a media query.
+ * Numbers are the hero of every screen. If a screen's largest element is text,
+ * it needs redesigning.
+ *
+ * Single theme, deliberately. This is a dark product with one acid accent; a
+ * light mode would halve the contrast that makes the accent mean "free money".
  */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
-  /* ---- Brand ------------------------------------------------------------- */
-  /* Growth. Used for the curve, for gains, for "yes". */
-  --growth: #00875a;
-  --growth-bright: #00b377;
-  --growth-soft: rgba(0, 135, 90, 0.12);
-  --growth-line: rgba(0, 135, 90, 0.28);
+  /* ---- Surface ------------------------------------------------------------ */
+  --bg: #08080a;
+  --surface: #111114;
+  /* One step up from surface, used where a hairline would otherwise be needed. */
+  --surface-2: #17171b;
 
-  /* Drag. The cost of waiting, of fees, of interest paid rather than earned. */
-  --drag: #d1453b;
-  --drag-soft: rgba(209, 69, 59, 0.1);
+  /* ---- Semantic ----------------------------------------------------------- */
+  /* Acid lime. Free money, optimal play, every affirmative state. Used sparingly
+     enough that it always means something. */
+  --accent: #c6f24e;
+  --accent-dim: rgba(198, 242, 78, 0.16);
+  --loss: #ff5a36;
+  --loss-dim: rgba(255, 90, 54, 0.14);
+  --caution: #ffd84e;
+  --caution-dim: rgba(255, 216, 78, 0.14);
 
-  /* Attention without alarm — streaks, highlights, the "this is the point" colour. */
-  --spark: #b26a00;
-  --spark-soft: rgba(178, 106, 0, 0.12);
+  /* ---- Receipt (and nowhere else) ----------------------------------------- */
+  --paper: #f2ede3;
+  --ink: #131316;
 
-  /* ---- Surfaces (iOS grouped-background family) --------------------------- */
-  --bg: #f2f2f7;
-  --surface: #ffffff;
-  --surface-2: #f2f2f7;
-  --surface-sunken: #e9e9ee;
-  --surface-inverse: #1c1c1e;
+  /* ---- Type colour -------------------------------------------------------- */
+  --fg: #ffffff;
+  --fg-2: rgba(255, 255, 255, 0.58);
+  --fg-3: rgba(255, 255, 255, 0.32);
+  --on-accent: #08080a;
 
-  /* Translucent materials. Backed by a solid fallback where blur is unavailable. */
-  --material-bar: rgba(249, 249, 249, 0.8);
-  --material-bar-solid: #f9f9f9;
-  --material-thick: rgba(255, 255, 255, 0.88);
+  /*
+   * Hairlines are a 1px gap on a lighter ground, not a border. Borders round
+   * with the box and pick up antialiasing on the corners; a gap stays exactly
+   * one device pixel and never softens.
+   */
+  --hairline: rgba(255, 255, 255, 0.09);
 
-  /* ---- Text (iOS label family) -------------------------------------------- */
-  --label: #000000;
-  --label-2: rgba(60, 60, 67, 0.6);
-  --label-3: rgba(60, 60, 67, 0.3);
-  --label-on-accent: #ffffff;
+  /* ---- Type --------------------------------------------------------------- */
+  --display: 'Archivo Black', 'Helvetica Neue', Impact, sans-serif;
+  --body: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --data: 'Courier Prime', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  /* ---- Lines -------------------------------------------------------------- */
-  --separator: rgba(60, 60, 67, 0.18);
-  --separator-opaque: #c6c6c8;
-  --hairline: 0.5px;
+  /* Display: uppercase, tight, never below 17px. */
+  --t-hero: 700 64px/0.92 var(--display);
+  --t-display: 700 34px/1.02 var(--display);
+  --t-headline: 700 26px/1.08 var(--display);
+  --t-title: 700 17px/1.15 var(--display);
 
-  /* ---- Fills (iOS system fills, for chips / inactive tracks / skeletons) --- */
-  --fill: rgba(120, 120, 128, 0.12);
-  --fill-2: rgba(120, 120, 128, 0.16);
-  --fill-3: rgba(120, 120, 128, 0.08);
+  /* Body: used sparingly. If there are two sentences, the screen is wrong. */
+  --t-body: 400 15px/1.42 var(--body);
+  --t-body-sm: 400 13px/1.38 var(--body);
 
-  /* ---- Elevation ---------------------------------------------------------- */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -12px rgba(0, 0, 0, 0.14);
-  --shadow-sheet: 0 -1px 0 var(--separator), 0 -24px 64px rgba(0, 0, 0, 0.18);
-  --shadow-pop: 0 12px 32px -8px rgba(0, 0, 0, 0.24);
+  /* Data: all labels, all figures. Wide tracking is the tell. */
+  --t-data: 400 13px/1.3 var(--data);
+  --t-data-sm: 400 11px/1.25 var(--data);
+  --t-figure: 700 22px/1.1 var(--data);
 
-  /* ---- Radii -------------------------------------------------------------- */
-  /* iOS uses continuous (squircle) corners; large radii approximate the read. */
-  --r-xs: 8px;
-  --r-sm: 12px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --r-xl: 28px;
-  --r-sheet: 14px;
-  --r-full: 999px;
+  --track-display: -0.03em;
+  --track-data: 0.14em;
+  --track-data-wide: 0.16em;
 
-  /* ---- Spacing (4pt grid) -------------------------------------------------- */
+  /* ---- Geometry ----------------------------------------------------------- */
+  /* 0-3px only. A rounded card is a different product. */
+  --r: 2px;
+  --r-sharp: 0px;
+
   --s-1: 4px;
   --s-2: 8px;
   --s-3: 12px;
@@ -81,141 +86,55 @@
   --s-8: 32px;
   --s-10: 40px;
   --s-12: 48px;
-  --s-16: 64px;
 
-  /* The standard iOS content inset. */
-  --gutter: 16px;
+  --gutter: 20px;
 
-  /* ---- Type ---------------------------------------------------------------- */
-  --font-text: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
-    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  /* Tabular figures matter a great deal in a money app: digits must not jitter
-     as values animate. SF has them; the fallback stack is chosen to degrade sanely. */
-  --font-num: ui-rounded, -apple-system, 'SF Pro Rounded', 'SF Pro Display',
-    'Segoe UI', Roboto, system-ui, sans-serif;
+  /* ---- Device ------------------------------------------------------------- */
+  /* iPhone 16 logical resolution. The product is designed at this size and the
+     eventual Swift port should be a straight lift. */
+  --device-w: 402px;
+  --device-h: 874px;
 
-  /* iOS text styles, at their default Dynamic Type sizes. */
-  --t-large-title: 700 34px/1.12 var(--font-text);
-  --t-title-1: 700 28px/1.15 var(--font-text);
-  --t-title-2: 700 22px/1.2 var(--font-text);
-  --t-title-3: 600 20px/1.25 var(--font-text);
-  --t-headline: 600 17px/1.3 var(--font-text);
-  --t-body: 400 17px/1.45 var(--font-text);
-  --t-callout: 400 16px/1.4 var(--font-text);
-  --t-subhead: 400 15px/1.35 var(--font-text);
-  --t-footnote: 400 13px/1.35 var(--font-text);
-  --t-caption: 400 12px/1.3 var(--font-text);
-  --t-caption-2: 500 11px/1.25 var(--font-text);
-
-  /* ---- Layout -------------------------------------------------------------- */
-  --tabbar-h: 49px;
-  --navbar-h: 44px;
-  /* Desktop caps the app to a phone-shaped column rather than stretching it. */
-  --app-max-w: 430px;
-
-  /* ---- Safe areas ----------------------------------------------------------
-     Read these instead of env() directly: they are always defined, even in
-     browsers that do not expose the env vars. */
-  /* A floor of 8px so the bar never sits flush against the top edge of a desktop
-     browser window, where env() legitimately reports 0. */
-  --sa-top: max(env(safe-area-inset-top, 0px), 8px);
-  --sa-right: env(safe-area-inset-right, 0px);
+  --sa-top: env(safe-area-inset-top, 0px);
   --sa-bottom: env(safe-area-inset-bottom, 0px);
   --sa-left: env(safe-area-inset-left, 0px);
+  --sa-right: env(safe-area-inset-right, 0px);
 
-  --z-nav: 20;
-  --z-tabbar: 30;
-  --z-sheet: 50;
-  --z-toast: 70;
+  /* Never below 44px. */
+  --tap: 44px;
+
+  /* ---- Motion -------------------------------------------------------------- */
+  /*
+   * Spring transitions between screens, not fades. 300ms at damping ~28 is the
+   * UIKit push feel; expressed here as the CSS equivalent so pure-CSS moves and
+   * Motion-driven ones share one vocabulary.
+   */
+  --dur-screen: 300ms;
+  --dur-tap: 120ms;
+  --ease-spring: linear(
+    0, 0.0088, 0.0344, 0.0748, 0.1283, 0.1931, 0.2672, 0.3487, 0.4358, 0.5265,
+    0.6191, 0.7117, 0.8028, 0.8908, 0.9742, 1.0518, 1.1223, 1.1849, 1.2387,
+    1.2832, 1.318, 1.3429, 1.3579, 1.3632, 1.3593, 1.3466, 1.3259, 1.298,
+    1.2638, 1.2243, 1.1805, 1.1336, 1.0845, 1.0343, 0.9841, 0.9348, 0.8873,
+    0.8424, 0.8008, 0.7631, 0.7298, 0.7012, 0.6776, 0.6591, 0.6456, 0.6371,
+    0.6333, 0.6339, 0.6386, 0.6469, 0.6584, 0.6726, 0.689, 0.7071, 0.7264,
+    0.7464, 0.7667, 0.7868, 0.8064, 0.8252, 0.8429, 0.8593, 0.8742, 0.8875,
+    0.8991, 0.909, 0.9172, 0.9238, 0.9288, 0.9324, 0.9347, 0.9359, 0.9361,
+    0.9355, 0.9343, 0.9327, 0.9308, 0.9288, 0.9268, 0.925, 0.9235, 0.9223,
+    0.9215, 0.9212, 0.9213, 0.9218, 0.9227, 0.9239, 0.9253, 0.927, 0.9288,
+    0.9306, 0.9325, 0.9343, 0.936, 0.9376, 0.939, 0.9402, 0.9412, 0.942, 1
+  );
+  /* Press feedback. All of it, everywhere. */
+  --press: 0.982;
+
+  --z-sheet: 40;
+  --z-toast: 60;
 }
 
-/* ---- Dark ----------------------------------------------------------------- */
-/* Applied for the system preference unless the user has explicitly chosen light. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --growth: #30d98a;
-    --growth-bright: #4ef0a3;
-    --growth-soft: rgba(48, 217, 138, 0.14);
-    --growth-line: rgba(48, 217, 138, 0.3);
-
-    --drag: #ff6b5e;
-    --drag-soft: rgba(255, 107, 94, 0.14);
-
-    --spark: #ffb340;
-    --spark-soft: rgba(255, 179, 64, 0.14);
-
-    --bg: #000000;
-    --surface: #1c1c1e;
-    --surface-2: #2c2c2e;
-    --surface-sunken: #0b0b0d;
-    --surface-inverse: #ffffff;
-
-    --material-bar: rgba(24, 24, 26, 0.76);
-    --material-bar-solid: #18181a;
-    --material-thick: rgba(30, 30, 32, 0.9);
-
-    --label: #ffffff;
-    --label-2: rgba(235, 235, 245, 0.6);
-    --label-3: rgba(235, 235, 245, 0.3);
-    --label-on-accent: #04160f;
-
-    --separator: rgba(84, 84, 88, 0.6);
-    --separator-opaque: #38383a;
-
-    --fill: rgba(120, 120, 128, 0.24);
-    --fill-2: rgba(120, 120, 128, 0.32);
-    --fill-3: rgba(120, 120, 128, 0.16);
-
-    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 32px -16px rgba(0, 0, 0, 0.8);
-    --shadow-sheet: 0 -1px 0 var(--separator), 0 -24px 64px rgba(0, 0, 0, 0.6);
-    --shadow-pop: 0 16px 40px -8px rgba(0, 0, 0, 0.7);
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-screen: 1ms;
+    --dur-tap: 1ms;
+    --ease-spring: linear;
   }
-}
-
-/* The in-app toggle wins over the system preference, in both directions. */
-:root[data-theme='dark'] {
-  --growth: #30d98a;
-  --growth-bright: #4ef0a3;
-  --growth-soft: rgba(48, 217, 138, 0.14);
-  --growth-line: rgba(48, 217, 138, 0.3);
-
-  --drag: #ff6b5e;
-  --drag-soft: rgba(255, 107, 94, 0.14);
-
-  --spark: #ffb340;
-  --spark-soft: rgba(255, 179, 64, 0.14);
-
-  --bg: #000000;
-  --surface: #1c1c1e;
-  --surface-2: #2c2c2e;
-  --surface-sunken: #0b0b0d;
-  --surface-inverse: #ffffff;
-
-  --material-bar: rgba(24, 24, 26, 0.76);
-  --material-bar-solid: #18181a;
-  --material-thick: rgba(30, 30, 32, 0.9);
-
-  --label: #ffffff;
-  --label-2: rgba(235, 235, 245, 0.6);
-  --label-3: rgba(235, 235, 245, 0.3);
-  --label-on-accent: #04160f;
-
-  --separator: rgba(84, 84, 88, 0.6);
-  --separator-opaque: #38383a;
-
-  --fill: rgba(120, 120, 128, 0.24);
-  --fill-2: rgba(120, 120, 128, 0.32);
-  --fill-3: rgba(120, 120, 128, 0.16);
-
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 32px -16px rgba(0, 0, 0, 0.8);
-  --shadow-sheet: 0 -1px 0 var(--separator), 0 -24px 64px rgba(0, 0, 0, 0.6);
-  --shadow-pop: 0 16px 40px -8px rgba(0, 0, 0, 0.7);
-}
-
-/* Honour an explicit light choice even when the system is dark. */
-:root[data-theme='light'] {
-  color-scheme: light;
-}
-:root[data-theme='dark'] {
-  color-scheme: dark;
 }

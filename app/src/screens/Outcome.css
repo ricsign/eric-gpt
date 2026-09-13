@@ -1,0 +1,103 @@
+.outcome {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: calc(var(--sa-top) + var(--s-6)) var(--gutter) calc(var(--sa-bottom) + var(--s-6));
+  background: var(--bg);
+}
+
+/* A solid block, not a pill. Rounded and tinted would soften a verdict that is
+   supposed to land. */
+.outcome-chip {
+  align-self: flex-start;
+  padding: 7px var(--s-3);
+  border-radius: var(--r);
+  font: var(--t-data);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data);
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.outcome-chip[data-v='short'],
+.outcome-chip[data-v='over'] {
+  background: var(--loss);
+  color: #fff;
+}
+
+.outcome-hero {
+  font: var(--t-hero);
+  font-size: 62px;
+  line-height: 0.9;
+  color: var(--accent);
+}
+
+.outcome-hero[data-v='short'],
+.outcome-hero[data-v='over'] {
+  color: var(--loss);
+}
+
+.outcome-line {
+  font: var(--t-body);
+  color: var(--fg-2);
+  max-width: 32ch;
+}
+
+.outcome-compare .tile[data-best] .tile-v {
+  color: var(--accent);
+}
+
+/* ---- Crowd ------------------------------------------------------------------- */
+
+.outcome-crowd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.outcome-percentile {
+  color: var(--fg-2);
+}
+
+/* ---- Rule -------------------------------------------------------------------- */
+
+.outcome-rule {
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.outcome-rule-text {
+  font: var(--t-headline);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  color: var(--accent);
+  text-wrap: balance;
+}
+
+/* ---- Commit ------------------------------------------------------------------ */
+
+.outcome-print {
+  margin-top: auto;
+  flex: none;
+  height: 58px;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: var(--r);
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+}
+
+.outcome-assumptions {
+  flex: none;
+  color: var(--fg-3);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: var(--body);
+  font-size: 11px;
+}

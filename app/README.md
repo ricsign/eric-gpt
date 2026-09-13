@@ -1,284 +1,192 @@
 # Compound
 
-**Live: https://compound-rose-delta.vercel.app** — open it on an iPhone and add it
-to the Home Screen; it runs full-screen and works offline.
+**One money call a day.** The same one for everyone, playable in under sixty
+seconds. You drag a real financial variable with your thumb, watch your future
+change on the same frame, and take a receipt.
 
-A financial-literacy web app built to feel like a native iOS app, and built around
-one bet: **teaching finance as a curriculum does not change behaviour, so don't
-build one.**
+Live: https://compound-rose-delta.vercel.app
 
 ```bash
 cd app
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 179 unit tests, all of the money maths
+npm test           # the money maths and the seams between agents
 npm run build
-npm run shoot      # drives the app in Chromium and screenshots every screen
-npm run a11y       # reduced motion, keyboard operation, landmarks (needs a served build)
+npm run shoot      # drives the whole loop in Chromium and screenshots it
+npm run a11y       # reduced motion, keyboard operation, landmarks
 ```
-
-`shoot` and `a11y` take a `BASE` env var, so they can be pointed at a deployed
-URL as well as a local server.
-
-## Deployment
-
-Vercel, linked to this repository — every push builds. `vercel.json` carries the
-one header that actually matters for a PWA: `sw.js` is served
-`must-revalidate`, because a service worker cached like a normal static asset
-pins every returning visitor to whichever build they first saw, permanently.
-Hashed assets get the opposite treatment, immutable for a year.
 
 ---
 
 ## The thesis
 
-The strongest finding in the financial-education literature is an uncomfortable
-one. Fernandes, Lynch & Netemeyer's meta-analysis of 201 studies found that
-financial-education interventions explain about **0.1% of the variance in actual
-financial behaviour**, with effects decaying to negligible within roughly twenty
-months. "Module 1: Budgeting, Module 2: Credit, Module 3: Investing" is the exact
-shape that finding indicts — and it is the shape of every finance-learning app on
-the market.
+Financial literacy apps fail because they teach vocabulary. Nobody needs to know
+what a 401(k) *is*. They need to have already felt what happens when they set it
+to 2% instead of 6%.
 
-What *does* move behaviour, per the follow-up literature (Kaiser & Menkhoff;
-Kaiser et al. 2022), is a single counter-intuitive concept delivered close to a
-real decision. Teaching compound interest at a moment of decision has moved real
-retirement contributions by around 40%.
+So Compound never explains a rule before the player has run into it. The rule is
+revealed **after** they commit to an answer, and only then does it get filed to
+their permanent Rules list.
 
-So this app is three things, in this order:
+## The four non-negotiables
 
-1. **A daily puzzle** — the ritual and the growth loop.
-2. **A set of deterministic calculators** — the reason to come back in month six.
-3. **Misconception-first lessons**, reachable from a result or a missed drill —
-   never from a syllabus.
+Everything else in this repo is replaceable. These are the product.
 
-There is no unit 1, no lock icons, no prerequisite chain, and no "next lesson"
-nudge at the end of a lesson.
+**1. The mechanic is a gesture, never multiple choice.**
+Every call is a continuous variable you drag. The lesson is discovered through
+the control's own behaviour. In call No.1 the blocks below the employer's 6% cap
+fill acid lime and the ones above fill plain white — the player drags, sees the
+green stop, sees their monthly cost keep climbing, and has understood that the
+match has a ceiling in about four seconds without reading a word.
 
-## The five rules everything obeys
+If a call cannot be expressed as a draggable variable, it is an article, and it
+does not ship.
 
-### 1. Compute, never conclude
+**2. One call a day, the same for everyone, closed once answered.**
+No binging, no content library to churn through. Scarcity plus synchrony is what
+makes "did you do today's Compound?" a sentence people say out loud. The day
+turns over at 06:00 local, not midnight — someone playing at 00:30 is finishing
+their evening, not starting a new day.
 
-A tool may show what $500/month becomes. It may never say "you should invest
-$500/month." The legal line in this category is *personalisation, not topic* —
-the Investment Advisers Act publisher's exclusion, as construed in *Lowe v. SEC*
-(1985), protects impersonal advice and stops protecting it the moment output is
-tailored to an individual's circumstances. Disclaimers do not cure that;
-architecture does.
+**3. The artifact is a receipt, not a grid.**
+A block grid is Wordle's costume. Money has its own native object: torn edges,
+monospace, dotted-leader line items, a stamp, and a barcode whose bar widths come
+from the player's actual result.
 
-Every calculator in `src/lib/calculators.ts` returns a **date, a dollar amount, a
-threshold, or a percentile**. Rent-vs-buy returns a break-even year. Payoff-vs-invest
-returns the hurdle rate above which investing wins. Never a verdict. A test in
-`src/data/content.test.ts` fails the build if lesson copy starts recommending.
+**4. No paragraphs.**
+Every screen is a number, a control, or one line of type. A second sentence means
+the screen has failed.
 
-### 2. Nothing that gets shared contains a dollar amount
+## The loop
 
-Money is the most taboo category of personal data on the internet. Debt and salary
-are the two most taboo topics in America, and only about 30% of people would tell a
-close friend their bank balance. Every finance share artifact that requires
-disclosing a figure — the net-worth card, the savings-score screenshot — demos
-beautifully and shares at approximately zero.
+```
+COLD OPEN → DRAG → LOCK IN → OUTCOME → RECEIPT → TOMORROW
+   0s        4s      12s       25s       40s      (countdown)
+```
 
-The shareable artifact is therefore the **Gap Card**: your hand-drawn line, the
-real curve over it, and one sentence — *I guessed 35% low.* The scenario is
-stated in universal terms ("$300 a month for 37 years at 7%"), never your
-figures. The disclosure is burned into the image, because a card circulating in a
-group chat does not carry your site footer with it.
+No splash, no login wall, no tutorial. The app opens directly onto today's call,
+already interactive. First run asks one question — annual salary, with a
+draggable number and a skip — and that single input personalises every figure in
+the product forever. No email, no age, no goals questionnaire.
 
-It is rendered on a canvas and shared through the native sheet with the image
-attached, degrading to text and then to the clipboard. Generating it client-side
-is also the correct architecture rather than a compromise: iMessage fetches link
-previews from the sender's device with no proxy, so a server-generated preview
-times out on a cellular connection.
+Auth is offered only after the first receipt exists, as "save your tab".
 
-An earlier build shipped a Wordle-style glyph on a daily puzzle instead. It was
-cut on an information-theoretic argument: three attempts at a four-option
-question yields three distinguishable outcomes, so the glyph encodes almost
-nothing and the modal result is a perfect score. Wordle's grid travels because it
-encodes five letters across six rows of three states. Copying the shape without
-the entropy would have been cargo-culting.
+## Why it feels like an app
 
-### 3. Forward framing only
-
-"Starting today puts you here," never "you already lost $47,000 by waiting."
-
-The backward-regret genre (the latte factor and its descendants) is now widely
-understood to have been built on ~11% return assumptions, and in 2026 it gets
-quote-tweeted as the joke rather than shared as the insight. The maths is identical;
-the framing is the difference between a useful lesson and a mockable one.
-
-### 4. One metric, and it goes down
-
-The only metric-like object in the app is **Calibration**: the median error across
-every curve you have drawn. It survives the objections a streak does not — it
-measures the actual learning objective rather than attendance, it is falsifiable
-unlike a composite score, it goes *down* so it is not a brag ladder, and missing a
-day cannot break it, so it carries no loss frame and needs no freezes or
-notifications to defend.
-
-Everything else the gamification playbook offers is absent, **including the streak**:
-
-| Included | Left out | Why |
-|---|---|---|
-| Calibration (falling, with a sparkline) | Streaks | A completion-contingent reward with a loss frame attached. It is inconsistent to ban badges on the crowding-out evidence and then exempt a streak |
-| Named competences ("you can price a delay in dollars") | XP, levels, points, coins | Deci et al. (1999), 128 studies: expected tangible rewards undermine intrinsic motivation at d = −0.28 to −0.40 |
-| Informational feedback on every wrong answer | Leaderboards | Hanus & Fox (2015): 16 weeks of leaderboards produced *lower* motivation, satisfaction **and** exam scores |
-| An honest "not now" on every commitment | Hearts, lives, lockouts | A loss frame applied to people already anxious about money, and it makes errors unsafe |
-| | Financial health scores out of 100 | Unfalsifiable, unactionable, and they invite exactly the gamification above |
-
-Cutting the streak was the hardest call here and it goes against the whole
-category. Beyond the motivation evidence, two things decided it. Financial
-competence is not a daily-repetition skill — you cannot rehearse a Roth IRA, so a
-streak over concept lessons becomes a streak about nothing. And a streak's
-enforcement mechanism is push notification, which on iOS requires the user to
-install the app to their Home Screen; install conversion is low single digits, and
-the installed app sits in a storage partition separate from Safari, so the install
-itself would wipe their progress. It would have been a retention mechanic we
-cannot reach most users with, defending a behaviour that does not exist.
-
-### 5. Show your sources, and your assumptions
-
-Every figure the app states lives as a dated row in `src/data/facts.ts` with its
-primary source and the date it was read — IRS Notice 2025-67, Rev. Proc. 2025-19,
-the SSA Federal Register notice, TreasuryDirect, FDIC, myFICO, ICI. None of them
-live in lesson prose. The **Sources** screen lists all of them with links, and
-anything not read from the issuing authority is marked as such.
-
-Every projection is driven by a return and inflation assumption the user can see
-and drag. A model that hides its assumptions is asking to be trusted; one that
-exposes them can be checked.
-
----
-
-## Lesson anatomy
-
-Every lesson is eight beats, in this fixed order. A test enforces it.
-
-| # | Beat | Why it is there |
-|---|---|---|
-| 1 | **Anchor** | Names a decision in the learner's own numbers |
-| 2 | **Prediction probe** | An answer committed *before* any instruction — the generation effect (d ≈ 0.40) and the misconception detector. A drawn curve where the answer is a curve; a slider where it is a quantity; multiple choice only for judgments, and only with misconception distractors. Never a free numeric entry — demanding arithmetic on screen two from an anxious, low-numeracy user is the highest-churn design available |
-| 3 | **Gap reveal** | Their line against the real one, animated, on a linear axis. Never a log axis, not even as an expert toggle: log scales measurably worsen public understanding of exponential growth, and the hockey stick *is* the pedagogy |
-| 4 | **Mechanism** | One causal sentence and one image. Nothing more |
-| 5 | **Worked example** | Scaffolding that fades — expertise reversal means support that helps a novice hurts them three weeks later |
-| 6 | **Practice** | 3–5 items, at least one in a different surface context |
-| 7 | **Rule of thumb** | Named and portable. Rule-of-thumb training beats formula training, and the gap is largest for the least confident learners |
-| 8 | **Commitment** | An implementation intention the learner writes themselves, with the app supplying only the blanks: "When ___, I will ___." The app never completes that sentence with a dollar figure about your accounts — that is the line between education and regulated personalised recommendation, and letting the learner generate it adds a second generation effect |
-
-**A lesson ends on the action.** There is no congratulations screen: completion is
-the moment the learner is most likely to act, and spending it on confetti wastes
-the product's own leverage.
-
-Two ordering constraints are enforced by tests, because both are easy to erode:
-content can never precede the probe, and the numeric slider never starts on the
-right answer.
-
-### Two schedulers, because there are two kinds of memory
-
-- **Facts** (`rule of 72`, `APR ≠ APY`) use a half-life model in the FSRS family —
-  scheduling on *recall probability* rather than on elapsed time. SM-2 loses to
-  FSRS on log loss in ~99.6% of collections and cannot express a target retention.
-- **Judgments** ("which debt do you pay first?") use a fixed expanding ladder —
-  1, 3, 10, 30, 90, 270 days — with a **different surface scenario each time**.
-  Item-level memory models do not model transfer, and a ladder that terminates at
-  two weeks guarantees the knowledge is gone by the time the real decision arrives.
-
-A fair criticism of the first of these: at this content volume the median user
-will never reach the review count where a trained scheduler beats published
-defaults, so the half-life model is arguably over-engineering. It is kept because
-it is written, tested and cheap, not because it is load-bearing.
-
----
-
-## Making the web feel like iOS
-
-| Technique | Where |
+| | |
 |---|---|
-| Real spring physics — `linear()` easings sampled from a damped harmonic oscillator, matching SwiftUI's `spring(response:bounce:)` | `scripts/gen-springs.mjs` → `styles/springs.css` |
-| Interactive edge swipe-back, with parallax on the layer beneath and velocity-projected commit | `ui/NavStack.tsx` |
-| Sheets with detents, rubber-banding past the top detent, and scroll-handoff arbitration | `ui/Sheet.tsx` |
-| Large-title nav bar that crossfades to an inline title, driven by a CSS variable so scrolling costs no React renders | `ui/Screen.tsx` |
-| Tab bar that slides away on push (`hidesBottomBarWhenPushed`) | `ui/Chrome.tsx` |
-| Haptics on iOS via the hidden `<input type="checkbox" switch>` trick, since Safari has no `navigator.vibrate`. Fragile by nature — Apple has been narrowing it — so it is isolated in one module and degrades to a silent no-op | `lib/haptics.ts` |
-| The curve canvas: pointer capture, monotonic x, `touch-action: pan-y` so a vertical flick still scrolls the page | `ui/CurveDraw.tsx` |
-| Safe areas, `dvh`, `overscroll-behavior: contain`, `touch-action: manipulation` | `styles/base.css` |
-| Offline: a hand-written worker, network-first for navigations so a stale contribution limit can never be served, cache-first for hashed assets. The asset list is injected at build time | `public/sw.js`, `scripts/build-sw.mjs` |
-| Tabular figures everywhere, so an animating balance never reflows | `.num` |
+| Drag runs on pointer events with pointer capture, `touch-action: none` | `ui/BlockBar.tsx` |
+| Value quantizes to integer steps — the same finger position always gives the same value | `positionToValue`, property-tested for idempotence |
+| Every dependent number recomputes on the **same frame** as the drag. The paint may be rAF'd; the value never is | `screens/Call.tsx` |
+| Haptic tick on each integer crossing, not each pointermove | `lib/haptics.ts` |
+| Spring screen transitions at ~300ms, damping ~28 — not fades | `App.tsx` |
+| `overscroll-behavior: contain`, no body rubber-banding, safe-area insets | `styles/base.css` |
+| Works offline once visited; `sw.js` is served `must-revalidate` so a new build actually reaches people | `public/sw.js`, `vercel.json` |
+| Fonts self-hosted — no third-party request, no render-blocking stylesheet | `scripts/fetch-fonts.mjs` |
 
-Pinch-zoom is deliberately **not** disabled. Focus-zoom on inputs is prevented the
-accessible way instead — every control is ≥16px — and the double-tap delay is
-killed with `touch-action: manipulation`.
+Pinch-zoom stays enabled. Focus-zoom is prevented the accessible way instead:
+every control is ≥16px.
 
-On a desktop window the app renders inside an iPhone bezel rather than stretching a
-phone layout across 1600px. The frame fakes the safe-area insets, so the same
-layout code positions content under the Dynamic Island there as it does on hardware.
+On desktop the app renders inside a 402×874 frame rather than stretching a phone
+layout across 1600px. The layout is authored at exactly the dimensions it ships
+at, so a Swift port is a straight lift.
 
-### The honest gap
-
-An iOS **widget** is unavailable to a pure web app, and at Duolingo the widget
-performs comparably to push, with widget-installers disproportionately holding
-6+ month streaks. Web push on iOS also requires the user to have added the app to
-their Home Screen. These are real capability limits, not things to design around —
-closing them needs a thin native shell.
-
----
-
-## What is deliberately not here
-
-- **No streak, no XP, no leaderboard, no badges, no health score.** See above.
-- **No account.** Nothing to sign up for. State lives in `localStorage`.
-- **No bank link.** Plaid costs 20–88% drop-off at the connect step; four sliders cost nothing.
-- **No affiliate links, referral fees, or sponsored placements** — and no product-comparison surface at all, which is the only version of that promise that is verifiable.
-- **No metering.** Every calculator is free and unlimited. They are the trust artifact.
-- **No LLM chat surface.** A conversational wrapper over vague guidance is the commodity AI Overviews already give away, and it cannot produce a repeatable, auditable number.
-- **No geo-detection.** Jurisdiction is asked explicitly at onboarding, and US-specific lessons are hidden rather than shown to non-US users with a caveat.
-
----
-
-## Layout
+## The visual system
 
 ```
-src/
-  lib/          finance.ts, calculators.ts, curve.ts, scheduler.ts, gapcard.ts
-                — pure, tested, no React
-  data/         facts.ts (dated + sourced), lessons.ts, drills.ts
-  ui/           the iOS component kit, including CurveDraw
-  screens/      Onboarding, Today, Drill, LessonPlayer, Tools, Learn, You
-  state/        one reducer, persisted to localStorage
+Background  #08080A    Surface  #111114
+Accent      #C6F24E  (acid lime — free money, optimal, affirmative)
+Loss        #FF5A36    Caution  #FFD84E
+Paper       #F2EDE3  (receipts only)    Ink  #131316
+
+Display  Archivo Black  uppercase, -0.03em, 17-64px
+Body     Space Grotesk  13-15px, sparingly
+Data     Courier Prime  all labels, all figures, 0.1-0.16em
 ```
 
-`src/lib` knows nothing about React, the DOM, or storage. A wrong number in a
-finance app is the one bug that loses all trust, so the maths is isolated and every
-figure quoted in lesson copy is cross-checked against the engine by a test.
+No rounded cards beyond 3px. No gradients. No shadows except the receipt. No
+icons that are not geometric primitives. No emoji anywhere in the UI. Hairlines
+are a 1px flex gap on a lighter ground, never a border — a border rounds with the
+box and picks up corner antialiasing; a gap stays exactly one device pixel.
+
+## Adding a call
+
+One JSON-shaped record in `calls/registry.ts`, and occasionally one pure function
+in `calls/compute.ts`. A non-engineer can ship a call.
+
+```ts
+{
+  id: 1,
+  title: 'Your boss pays 50c for every dollar you save.',  // max 12 words
+  variable: { key: 'contribution', min: 0, max: 15, step: 1, unit: '%', start: 3 },
+  fixed: [{ k: 'PAY', v: '{{salary}}' }, { k: 'MATCH', v: '50% UP TO 6% OF PAY' }],
+  compute: 'employerMatch',
+  optimal: 6,
+  rule: 'Take the match before anything else.',           // under 10 words
+  crowd: [14, 2, 3, 22, 6, 9, 13, 2, 5, 1, 12, 1, 3, 1, 1, 5],
+  tomorrow: 'You have $500 spare. Both cards want it.',
+}
+```
+
+`variable.start` is deliberately the *wrong* answer, and usually the one the real
+world defaults to — 3% auto-enrolment, a $0 counter-offer, the whole repair quote.
+If the control opened on the optimum the gesture would teach nothing.
+
+`crowd` is a real-world prior, not a bell curve. Its shape is the second half of
+the lesson: in call No.1 the tallest spike sits at the 3% auto-enrolment default,
+which stops half a step short of the match. **The gap between where the crowd
+piles up and where the optimum sits is the thing worth screenshotting**, and each
+distribution carries a comment justifying its shape against real survey data.
 
 ## Tests
 
-179 of them. The interesting ones are not the unit tests:
+The interesting ones are not unit tests. They are the **seam tests** in
+`calls/integration.test.ts`, which check the modules against each other rather
+than against their own intentions:
 
-- **Content integrity** — every drill has exactly one correct answer, every option (including the right one) explains itself, no drill references personal data.
-- **Arithmetic cross-checks** — the numbers printed in drill copy are recomputed from `finance.ts`. If an assumption changes, the copy fails rather than quietly lying.
-- **Format invariants** — lessons build all eight beats in order, the probe always precedes explanation, every lesson ends on an action with an honest way out.
-- **The compliance guard** — lesson output is scanned for recommendation language, and commitment pre-fills are checked for second-person copy.
-- **The wedge guard** — a brand-new learner must be offered a curve to draw rather than a multiple choice, and every draw probe must leave axis headroom so the truth does not give away its own shape.
-- **Smoke** — `npm run shoot` drives the whole app in Chromium and fails on any console error.
-- **Accessibility** — `npm run a11y` checks the four things that break while still looking fine in a screenshot: reduced motion actually flattens the springs, the custom slider is operable from the keyboard, the tab order reaches real controls, and no `role="img"` SVG is unlabelled.
+- **The declared optimal really is the best play** — every call's full range is
+  swept at four different salaries and the peak must land where the record
+  claims. A call whose maths disagrees with its own `optimal` tells a correct
+  player they left money behind.
+- **No position produces a broken number** — no NaN, no Infinity, no negative
+  monthly cost at any reachable value for any profile.
+- **`crowd.length === stepCount(variable)`** — drift here misaligns every bar in
+  the histogram against the value it claims to represent. The chart still
+  renders; it just lies.
+- **The control never starts on the optimum**, and always on a reachable step.
+- **Moving the control changes something** — a call whose numbers do not move as
+  you drag is an article wearing a control.
+- **The breakdown is receipt-ready at every position** — 3-6 lines, exactly one
+  emphasis, labels short enough for the monospace column.
 
-## Honest limitations
+## Deliberate choices
 
-- **The calculators are commodities.** Bankrate, SmartAsset, Empower, Fidelity and
-  the IRS's own withholding estimator already give away free versions of most of
-  them. What is not free is maintained, auditable, cross-decision state with no
-  affiliate surface — and that has to be true enough to be worth something.
-- **The monthly-rate convention differs from most calculators.** A 7% annual
-  return here means `(1+0.07)^(1/12)−1` per month, so 7% really compounds to 7% in
-  a year. Most calculators use `0.07/12`, which quietly overstates growth by
-  roughly 6% over forty years. Ours is the smaller, more defensible number.
-- **No iOS widget, and no Live Activities.** Unavailable to a pure web app. At
-  Duolingo the widget performs comparably to push and correlates with long
-  streaks. Closing that gap needs a thin native shell.
-- **Cold start.** The Gap Card's normaliser ("most people guess 58% low") needs
-  telemetry this app does not collect, so it is simply not shown rather than
-  invented.
-- **Single filers only**, federal tax only, US-specific content gated behind an
-  explicit jurisdiction question. Married-filing-jointly takes the profile from
-  eight numbers to roughly fourteen and would undo the low-input positioning.
+Override only with a reason.
+
+- **No monetization in v1, and no streak-freeze purchases ever.** Selling
+  protection against loss teaches the opposite of what the app teaches.
+- **The wrong answer shows a loss in red, unsoftened.** It is the strongest viral
+  lever and the honest one. The one concession is that the loss is always framed
+  against the optimal play on the same call, never against the player's real
+  finances — which they have not disclosed and we do not hold.
+- **No friend leaderboard at launch.** It converts a learning tool into a flex and
+  changes who plays.
+- **No AI chat coach.** It would make the app generic and unfalsifiable overnight.
+  The Rules page is the memory layer instead.
+- **No fabricated player count.** The header shows a live count only when there is
+  a real one. A made-up "9,400 people have already called it" in a product whose
+  pitch is that the numbers are real would be the worst possible place to lie.
+
+## Known limits
+
+- **The crowd histogram is authored priors blended with local results.** Real
+  aggregation needs a backend; the seed distributions are grounded in published
+  survey data and each carries its source in a comment, but they are priors, not
+  observations. `lib/crowd.ts` already decays the seed as real results arrive.
+- **No iOS widget or Live Activity.** Unavailable to a pure web app; both need a
+  native shell.
+- **Web push on iOS requires a Home Screen install**, which is a small
+  single-digit share of visitors. Notifications are a bonus surface, never the
+  retention plan.
+- **Projections use 7% nominal and state it.** Never presented as a promise. The
+  employer match is the one figure stated as certain, because it is.

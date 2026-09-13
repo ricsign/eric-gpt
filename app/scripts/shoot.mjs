@@ -1,8 +1,13 @@
 /**
- * Drives the app on a simulated iPhone and captures each screen.
+ * Drives the whole loop on a simulated iPhone and captures every screen.
  *
- * Also fails the run on any console error or page exception, so this doubles as a
- * smoke test: a screenshot of a white screen is easy to miss, a thrown error is not.
+ * Doubles as the smoke test: any console error or page exception fails the run.
+ * A screenshot of a blank screen is easy to miss in a diff; a thrown exception
+ * is not.
+ *
+ *   node scripts/shoot.mjs [outDir]
+ *   BASE=https://… node scripts/shoot.mjs   # against a deployment
+ *   THEME is ignored — the product has one theme by design.
  */
 import { launch } from './browser.mjs'
 import { mkdirSync } from 'node:fs'
@@ -13,142 +18,100 @@ mkdirSync(OUT, { recursive: true })
 
 const browser = await launch()
 const context = await browser.newContext({
-  // iPhone 16 logical resolution, at device scale 3 for a crisp capture.
-  viewport: { width: 393, height: 852 },
+  // The exact logical resolution the product is authored at.
+  viewport: { width: 402, height: 874 },
   deviceScaleFactor: 3,
   isMobile: true,
   hasTouch: true,
+  colorScheme: 'dark',
   userAgent:
     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
-  colorScheme: process.env.THEME === 'light' ? 'light' : 'dark',
 })
 
 const problems = []
 const page = await context.newPage()
-page.on('console', (m) => {
-  if (m.type() === 'error') problems.push(`console.error: ${m.text()}`)
-})
+page.on('console', (m) => m.type() === 'error' && problems.push(`console.error: ${m.text()}`))
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`))
 
 const shot = async (name) => {
-  await page.waitForTimeout(650)
+  await page.waitForTimeout(500)
   await page.screenshot({ path: `${OUT}/${name}.png` })
   console.log(`  ${name}`)
 }
 
 const tap = async (selector, label) => {
   const el = page.locator(selector).first()
-  await el.waitFor({ state: 'visible', timeout: 8000 })
+  await el.waitFor({ state: 'visible', timeout: 10000 })
   await el.click()
   if (label) console.log(`  tapped ${label}`)
-  await page.waitForTimeout(450)
+  await page.waitForTimeout(400)
 }
 
-console.log('onboarding')
+console.log('cold open')
 await page.goto(BASE, { waitUntil: 'networkidle' })
-await shot('01-intro')
+await shot('01-salary')
 
-await tap('button:has-text("Start")')
-await shot('02-age')
-await tap('button:has-text("Next")')
-await shot('03-saving')
-await tap('button:has-text("Next")')
-await shot('04-debt')
-await tap('button:has-text("Next")')
-await shot('05-jurisdiction')
-await tap('button:has-text("United States")')
-await shot('06-payoff')
-await tap('button:has-text("Take me in")')
-
-console.log('app')
-await shot('07-today')
-
-await tap('.today-section:has-text("One question") .card', 'drill card')
-await shot('08-drill')
-
-// Keep answering until the drill resolves, so the run works whichever position
-// today's correct answer happens to sit in.
-for (let i = 0; i < 4; i++) {
-  const open = page.locator('.drill-option:not([disabled])')
-  if ((await open.count()) === 0) break
-  await open.first().click()
-  await page.waitForTimeout(500)
-  if (i === 0) await shot('09-drill-answered')
-}
-await shot('10-drill-result')
-await tap('button:has-text("Today")', 'back')
-
-console.log('lesson')
-await tap('.today-section:has-text("Draw this one next") .card')
-await shot('11-lesson-anchor')
-await tap('button:has-text("Continue")')
-await shot('12-lesson-probe')
-
-// Exercise the wedge: draw a straight line across the canvas, which is the
-// canonical wrong answer and the case the whole product is built around.
-const canvas = page.locator('.curve-canvas')
-if (await canvas.count()) {
-  const box = await canvas.first().boundingBox()
-  if (box) {
-    const y0 = box.y + box.height * 0.92
-    await page.mouse.move(box.x + 14, y0)
-    await page.mouse.down()
-    for (let i = 1; i <= 24; i++) {
-      const f = i / 24
-      await page.mouse.move(box.x + 14 + f * (box.width - 28), y0 - f * box.height * 0.5)
-      await page.waitForTimeout(12)
-    }
-    await page.mouse.up()
-    await page.waitForTimeout(300)
-    await shot('12b-curve-drawn')
-    await tap("button:has-text(\"That's my guess\")", 'commit curve')
-    await page.waitForTimeout(1400)
-    await shot('13-curve-revealed')
+// Drag the salary track rather than skipping, so the first-run gesture is
+// exercised on every run.
+const track = await page.locator('.salary-track').first().boundingBox()
+if (track) {
+  await page.mouse.move(track.x + track.width * 0.1, track.y + track.height / 2)
+  await page.mouse.down()
+  for (let i = 1; i <= 12; i++) {
+    await page.mouse.move(track.x + track.width * (0.1 + (0.45 * i) / 12), track.y + track.height / 2)
+    await page.waitForTimeout(14)
   }
+  await page.mouse.up()
+  await shot('02-salary-dragged')
+}
+await tap('.salary-go', 'start')
+
+console.log('the call')
+await shot('03-call')
+
+// The mechanic. Drag the block bar across most of its range, then back, so the
+// same-frame recompute and the block tinting are both visible in the capture.
+const bar = await page.locator('.blockbar').first().boundingBox()
+if (bar) {
+  const y = bar.y + bar.height / 2
+  await page.mouse.move(bar.x + 4, y)
+  await page.mouse.down()
+  for (let i = 1; i <= 20; i++) {
+    await page.mouse.move(bar.x + 4 + (bar.width - 8) * (i / 20), y)
+    await page.waitForTimeout(16)
+  }
+  await shot('04-call-dragged-max')
+  for (let i = 20; i >= 8; i--) {
+    await page.mouse.move(bar.x + 4 + (bar.width - 8) * (i / 20), y)
+    await page.waitForTimeout(16)
+  }
+  await page.mouse.up()
+  await shot('05-call-settled')
+} else {
+  problems.push('no .blockbar found — the control is the product, this is fatal')
 }
 
-const lockIn = page.locator('button:has-text("Lock it in")')
-if (await lockIn.count()) {
-  await lockIn.first().click()
-  await page.waitForTimeout(900)
-  await shot('13-lesson-probe-result')
-}
-await tap('button:has-text("Continue")')
-await shot('14-lesson-reveal')
-await tap('button:has-text("Continue")')
-await shot('15-lesson-mechanism')
-await tap('button:has-text("Continue")')
-await shot('16-lesson-worked')
-await tap('button:has-text("Continue")')
-await shot('17-lesson-practice')
-await tap('.lp-q-option >> nth=0')
-await shot('18-lesson-practice-answered')
-await tap('button:has-text("Continue")')
-await shot('19-lesson-rule')
-await tap('button:has-text("Continue")')
-await shot('20-lesson-action')
-await tap('.lp-footer-actions button >> nth=0')
+await tap('.call-lock', 'lock it in')
 
-console.log('tabs')
-await shot('21-today-after')
-await tap('.tabbar-btn:has-text("Tools")')
-await shot('22-tools')
-await tap('.card:has-text("What it becomes")')
-await shot('23-tool-growth')
-await tap('button:has-text("Tools")', 'back')
-await tap('.card:has-text("Debt-free date")')
-await shot('24-tool-debt')
-await tap('button:has-text("Tools")', 'back')
-await tap('.card:has-text("Marginal vs effective")')
-await shot('25-tool-tax')
-await tap('button:has-text("Tools")', 'back')
+console.log('outcome')
+await shot('06-outcome')
+await page.evaluate(() => document.querySelector('.outcome')?.scrollTo(0, 400))
+await shot('07-outcome-crowd')
 
-await tap('.tabbar-btn:has-text("Learn")')
-await shot('26-learn')
-await tap('.tabbar-btn:has-text("You")')
-await shot('27-you')
-await tap('.row:has-text("Sources")')
-await shot('28-sources')
+await tap('.outcome-print', 'print receipt')
+console.log('receipt')
+await shot('08-receipt')
+
+await tap('.receipt-next', 'tomorrow')
+console.log('tomorrow')
+await shot('09-tomorrow')
+
+await tap('.tomorrow-link:has-text("Tab")', 'the tab')
+await shot('10-tab')
+await tap('[data-close], .tab-close', 'close')
+
+await tap('.tomorrow-link:has-text("Rules")', 'rules')
+await shot('11-rules')
 
 await browser.close()
 

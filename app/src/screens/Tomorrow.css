@@ -1,0 +1,55 @@
+.tomorrow {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: calc(var(--sa-top) + var(--s-10)) var(--gutter) calc(var(--sa-bottom) + var(--s-6));
+  background: var(--bg);
+}
+
+.tomorrow-clock {
+  font: var(--t-hero);
+  font-size: 52px;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.tomorrow-teaser {
+  font: var(--t-headline);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+  margin-top: var(--s-5);
+  max-width: 16ch;
+}
+
+.tomorrow-tab {
+  margin-top: auto;
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: var(--s-4);
+}
+
+.tomorrow-tab-v {
+  font: var(--t-hero);
+  font-size: 40px;
+  color: var(--fg);
+  margin: var(--s-1) 0 var(--s-2);
+}
+
+.tomorrow-nav {
+  display: flex;
+  gap: 1px;
+  flex: none;
+}
+
+.tomorrow-link {
+  flex: 1;
+  height: var(--tap);
+  background: var(--surface);
+  border-radius: var(--r);
+  font: var(--t-data);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data);
+  color: var(--fg-2);
+}

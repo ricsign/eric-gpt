@@ -1,94 +1,163 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { AppShell } from './ui/AppShell'
-import { TabBar, type TabDef } from './ui/TabBar'
-import { ICONS } from './ui/icons'
-import { NavStack } from './ui/NavStack'
-import { ChromeProvider, useChrome } from './ui/Chrome'
-import { useStore } from './state/store'
-import { Onboarding } from './screens/Onboarding'
-import { TodayScreen } from './screens/Today'
-import { ToolsScreen } from './screens/Tools'
-import { LearnScreen } from './screens/Learn'
-import { YouScreen } from './screens/You'
-import { dayKey } from './lib/format'
-import { spring } from './lib/motion'
-import { drillNumber } from './lib/daily'
+import { Device } from './ui/Device'
+import { Salary } from './screens/Salary'
+import { CallScreen } from './screens/Call'
+import { Outcome } from './screens/Outcome'
+import { ReceiptScreen } from './screens/ReceiptScreen'
+import { Tomorrow } from './screens/Tomorrow'
+import { Tab } from './screens/Tab'
+import { Rules } from './screens/Rules'
+import { CALLS, callById } from './calls/registry'
+import { COMPUTE } from './calls/compute'
+import {
+  judge,
+  optimalValue,
+  stepCount,
+  type CallResult,
+} from './calls/types'
+import { callIndex, callNumber, compoundDay } from './lib/schedule'
+import { profileOrDefault, resultFor, scoredResults, useStore } from './state/store'
 import './App.css'
 
-type TabId = 'today' | 'tools' | 'learn' | 'you'
+type Screen = 'call' | 'outcome' | 'receipt' | 'tomorrow' | 'tab' | 'rules'
 
+/**
+ * The whole app is one linear loop plus two side surfaces.
+ *
+ *   cold open -> drag -> lock in -> outcome -> receipt -> tomorrow
+ *
+ * There is no tab bar. A persistent nav would put chrome in permanent
+ * competition with the control, and the control is the product. The Tab and
+ * Rules are reachable from the ends of the loop, where the player has just
+ * finished rather than started.
+ */
 export function App() {
-  const { state } = useStore()
+  const profile = useStore((s) => s.profile)
+  const results = useStore((s) => s.results)
+  const localCrowd = useStore((s) => s.localCrowd)
+  const setProfile = useStore((s) => s.setProfile)
+  const lockIn = useStore((s) => s.lockIn)
 
-  if (!state.onboarded) {
+  const day = compoundDay()
+  const callNo = callNumber(day)
+  const call = useMemo(() => CALLS[callIndex(callNo, CALLS.length)], [callNo])
+
+  const existing = resultFor(results, call.id)
+  const [screen, setScreen] = useState<Screen>(existing ? 'outcome' : 'call')
+  const [answer, setAnswer] = useState<number | null>(existing?.value ?? null)
+
+  const commit = useCallback(
+    (value: number) => {
+      const compute = COMPUTE[call.compute]
+      const p = profileOrDefault(profile)
+      const best = optimalValue(call.optimal)
+      const verdict = judge(value, call.optimal)
+      const at65 = compute(value, p).at65
+
+      const result: CallResult = {
+        callId: call.id,
+        value,
+        verdict,
+        delta: at65 - compute(best, p).at65,
+        at65,
+        day,
+        // A call closes once answered. Coming back the same day is practice and
+        // must not move the Tab, or the number stops meaning anything.
+        practice: Boolean(existing),
+      }
+
+      lockIn(result, stepCount(call.variable))
+      setAnswer(value)
+      setScreen('outcome')
+    },
+    [call, profile, day, existing, lockIn],
+  )
+
+  if (!profile) {
     return (
-      <AppShell>
-        <Onboarding />
-      </AppShell>
+      <Device>
+        <Salary onDone={setProfile} />
+      </Device>
     )
   }
 
-  return (
-    <ChromeProvider>
-      <TabbedApp />
-    </ChromeProvider>
-  )
-}
-
-function TabbedApp() {
-  const { state } = useStore()
-  const [tab, setTab] = useState<TabId>('today')
-  const { pushedDepth } = useChrome()
-
-  const todayDrill = state.drills[drillNumber(dayKey())]
-  const tabs: TabDef<TabId>[] = [
-    { id: 'today', label: 'Today', icon: ICONS.today, badge: todayDrill ? 0 : 1 },
-    { id: 'tools', label: 'Tools', icon: ICONS.tools },
-    { id: 'learn', label: 'Learn', icon: ICONS.learn },
-    { id: 'you', label: 'You', icon: ICONS.you },
-  ]
+  const p = profileOrDefault(profile)
+  const nextCall = callById(CALLS[callIndex(callNo + 1, CALLS.length)].id)
 
   return (
-    <AppShell>
+    <Device>
       <div className="app">
-        {/*
-          Tabs cross-fade rather than slide. Sliding implies a spatial relationship
-          between tabs that does not exist — iOS does not animate tab changes either,
-          and a fast fade reads as instant while still smoothing the repaint.
-        */}
-        <div className="app-body">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={tab}
-              className="app-page"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.14 }}
-            >
-              {/* Each tab owns its own navigation stack, so pushing a lesson from
-                  Today and coming back finds Today exactly where it was. */}
-              {tab === 'today' && <NavStack root={<TodayScreen />} />}
-              {tab === 'tools' && <NavStack root={<ToolsScreen />} />}
-              {tab === 'learn' && <NavStack root={<LearnScreen />} />}
-              {tab === 'you' && <NavStack root={<YouScreen />} />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={screen}
+            className="app-screen"
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -18 }}
+            // Spring, not a fade — 300ms at damping ~28 is the UIKit push feel.
+            transition={{ type: 'spring', visualDuration: 0.3, bounce: 0.02 }}
+          >
+            {screen === 'call' && (
+              <CallScreen
+                call={call}
+                callNo={callNo}
+                profile={p}
+                playedCount={null}
+                onLockIn={commit}
+              />
+            )}
 
-        {/* Slides out when a screen is pushed, as UIKit does. Kept mounted and
-            inert rather than unmounted, so the slide can animate both ways. */}
-        <motion.div
-          className="app-tabbar"
-          animate={{ y: pushedDepth > 0 ? '110%' : '0%' }}
-          transition={spring.nav}
-          aria-hidden={pushedDepth > 0}
-          inert={pushedDepth > 0}
-        >
-          <TabBar tabs={tabs} active={tab} onChange={setTab} />
-        </motion.div>
+            {screen === 'outcome' && answer !== null && (
+              <Outcome
+                call={call}
+                callNo={callNo}
+                value={answer}
+                profile={p}
+                localCrowd={localCrowd[call.id]}
+                onReceipt={() => setScreen('receipt')}
+              />
+            )}
+
+            {screen === 'receipt' && answer !== null && (
+              <ReceiptScreen
+                call={call}
+                callNo={callNo}
+                value={answer}
+                profile={p}
+                day={day}
+                onNext={() => setScreen('tomorrow')}
+              />
+            )}
+
+            {screen === 'tomorrow' && (
+              <Tomorrow
+                teaser={call.tomorrow}
+                nextTitle={nextCall?.title ?? ''}
+                results={scoredResults(results)}
+                onTab={() => setScreen('tab')}
+                onRules={() => setScreen('rules')}
+              />
+            )}
+
+            {screen === 'tab' && (
+              <Tab
+                results={scoredResults(results)}
+                profile={p}
+                onClose={() => setScreen('tomorrow')}
+              />
+            )}
+
+            {screen === 'rules' && (
+              <Rules
+                results={scoredResults(results)}
+                calls={CALLS}
+                onClose={() => setScreen('tomorrow')}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
-    </AppShell>
+    </Device>
   )
 }

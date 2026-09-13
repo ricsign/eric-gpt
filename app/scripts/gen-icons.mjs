@@ -39,7 +39,7 @@ for (const t of TARGETS) {
          <div class="mark">${svg}</div>
          <div class="copy">
            <h1>Compound</h1>
-           <p>Two minutes a day. Your real numbers. Answers that are a date or a dollar amount, never an opinion.</p>
+           <p>One money call a day. Drag the number, watch your future move, take the receipt.</p>
          </div>
        </div>`
     : `<div class="icon" style="padding:${t.inset * 100}%">${svg}</div>`
@@ -48,14 +48,14 @@ for (const t of TARGETS) {
     *{margin:0;padding:0;box-sizing:border-box}
     body{width:${width}px;height:${height}px;overflow:hidden;
          font-family:-apple-system,'SF Pro Display','Segoe UI',Roboto,sans-serif}
-    .icon{width:100%;height:100%;background:#06120D}
+    .icon{width:100%;height:100%;background:#08080A}
     .icon svg{width:100%;height:100%;display:block}
-    .og{width:100%;height:100%;background:#06120D;color:#fff;
+    .og{width:100%;height:100%;background:#08080A;color:#fff;
         display:flex;flex-direction:column;justify-content:center;gap:36px;padding:72px}
-    .og .mark{width:140px}
+    .og .mark{width:220px}
     .og .mark svg{width:100%;height:auto;display:block}
-    .og h1{font-size:76px;letter-spacing:-.03em;font-weight:700}
-    .og p{font-size:31px;line-height:1.4;color:#9BA3A0;max-width:24ch;margin-top:14px}
+    .og h1{font-size:84px;letter-spacing:-.03em;font-weight:800;text-transform:uppercase}
+    .og p{font-size:30px;line-height:1.4;color:#8A8A90;max-width:26ch;margin-top:14px}
   </style></head><body>${body}</body></html>`)
 
   await page.screenshot({ path: resolve(pub, t.file), omitBackground: false })

@@ -1,0 +1,113 @@
+.call {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: calc(var(--sa-top) + var(--s-4)) var(--gutter) calc(var(--sa-bottom) + var(--s-4));
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.call-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  flex: none;
+}
+
+/* Maximum 12 words, three lines. If it wraps to four, the copy is wrong. */
+.call-title {
+  font: var(--t-display);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+  flex: none;
+}
+
+.call-facts,
+.call-consequences {
+  flex: none;
+}
+
+.tile-unit {
+  font-size: 12px;
+  color: var(--fg-3);
+  letter-spacing: 0;
+  margin-left: 1px;
+}
+
+.tile[data-good] .tile-v {
+  color: var(--accent);
+}
+
+/* ---- The control ------------------------------------------------------------ */
+
+.call-control {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+}
+
+.call-readout {
+  font: var(--t-hero);
+  color: var(--fg);
+  line-height: 1;
+  /*
+   * Fixed-width digits and a reserved line box: the readout changes on every
+   * frame of the drag, and a number that reflows its own container as it counts
+   * is the single most obvious tell that this is a web page.
+   */
+  font-variant-numeric: tabular-nums;
+}
+
+.call-unit {
+  font-size: 28px;
+  color: var(--fg-3);
+  margin-left: 2px;
+}
+
+.call-readout-label {
+  margin-top: -4px;
+}
+
+/* ---- Hero ------------------------------------------------------------------- */
+
+.call-hero {
+  flex: none;
+  background: var(--surface);
+  text-align: center;
+  padding: var(--s-4);
+}
+
+.call-hero-v {
+  font: var(--t-hero);
+  font-size: 44px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  margin-top: var(--s-1);
+}
+
+/* ---- Commit ----------------------------------------------------------------- */
+
+.call-lock {
+  flex: none;
+  margin-top: auto;
+  height: 58px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--r);
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  transition: background-color var(--dur-tap) ease-out, color var(--dur-tap) ease-out;
+}
+
+.call-lock:disabled {
+  background: var(--surface);
+  color: var(--fg-3);
+  cursor: default;
+}

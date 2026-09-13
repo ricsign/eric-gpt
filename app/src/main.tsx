@@ -1,34 +1,29 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './styles/springs.css'
+import './styles/fonts.css'
 import './styles/tokens.css'
 import './styles/base.css'
 import { App } from './App'
-import { StoreProvider } from './state/store'
 
 const root = document.getElementById('root')
 if (!root) throw new Error('#root is missing from index.html')
 
 createRoot(root).render(
   <StrictMode>
-    <StoreProvider>
-      <App />
-    </StoreProvider>
+    <App />
   </StrictMode>,
 )
 
 /*
- * Register the service worker so the app opens offline once it has been visited.
+ * Register the service worker after first paint, production only.
  *
- * Deliberately after first paint and in production only: a worker racing the
- * first render buys nothing, and in development it would serve a stale bundle
- * over the dev server's own hot updates.
+ * The app must open offline once visited — a daily game you cannot play on the
+ * subway is a daily game people stop playing.
  */
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {
-      // Blocked by a private window, an unsupported browser, or an insecure
-      // origin. The app works fine without it; there is nothing to report.
+      // Private window, unsupported browser, or insecure origin. Nothing to do.
     })
   })
 }

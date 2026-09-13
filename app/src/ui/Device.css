@@ -1,0 +1,85 @@
+.device {
+  height: 100%;
+  background: var(--bg);
+}
+
+/* ---- Phone: nothing in the way ---------------------------------------------- */
+
+.device--bare {
+  position: relative;
+  height: 100%;
+  max-width: var(--device-w);
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+/* ---- Desktop: an iPhone on a black desk -------------------------------------- */
+
+.device--framed {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--s-8);
+  overflow: hidden;
+}
+
+.device-stage {
+  position: relative;
+  width: var(--device-w);
+  height: min(var(--device-h), calc(100dvh - 80px));
+  aspect-ratio: 402 / 874;
+}
+
+/*
+ * A flat band, not a chrome-and-glass render. A photorealistic bezel would be
+ * the most decorated object in a product whose entire brand is restraint.
+ */
+.device-body {
+  position: absolute;
+  inset: -10px;
+  border-radius: 56px;
+  background: #26262a;
+}
+
+.device-screen {
+  position: relative;
+  height: 100%;
+  border-radius: 46px;
+  overflow: hidden;
+  background: var(--bg);
+  isolation: isolate;
+  /*
+   * Fake the insets the real hardware provides, so the very same layout code
+   * positions content under the Dynamic Island here as it does on device.
+   */
+  --sa-top: 54px;
+  --sa-bottom: 34px;
+  --sa-left: 0px;
+  --sa-right: 0px;
+}
+
+.device-island {
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 124px;
+  height: 36px;
+  border-radius: 999px;
+  background: #000;
+  z-index: var(--z-toast);
+  pointer-events: none;
+}
+
+.device-home {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+  z-index: var(--z-toast);
+  pointer-events: none;
+}

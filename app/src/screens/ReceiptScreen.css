@@ -1,0 +1,75 @@
+.receipt-screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  padding: calc(var(--sa-top) + var(--s-6)) var(--gutter) calc(var(--sa-bottom) + var(--s-6));
+  background: var(--bg);
+}
+
+.receipt-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.receipt-btn-row {
+  display: flex;
+  gap: var(--s-2);
+}
+.receipt-btn-row > .receipt-btn {
+  flex: 1;
+}
+
+.receipt-btn {
+  height: var(--tap);
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: var(--r);
+  font: var(--t-data);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data);
+}
+
+.receipt-btn--primary {
+  height: 56px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: var(--t-title);
+  letter-spacing: var(--track-display);
+}
+
+.receipt-fail {
+  color: var(--loss);
+}
+
+/* ---- Tomorrow teaser ---------------------------------------------------------
+ * Every receipt ends with the next hook. Never "come back!" — always the
+ * scenario itself, because the scenario is the reason to come back.
+ */
+
+.receipt-next {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  align-items: flex-start;
+  text-align: left;
+  padding: var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r);
+}
+
+.receipt-next-teaser {
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  color: var(--fg);
+  text-wrap: balance;
+}
+
+.receipt-total {
+  color: var(--fg-3);
+}

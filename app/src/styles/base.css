@@ -1,5 +1,5 @@
 /*
- * Base layer: everything that makes a web page stop behaving like a web page.
+ * Base layer: everything that stops this behaving like a web page.
  */
 
 *,
@@ -9,11 +9,8 @@
 }
 
 html {
-  /* Kill the iOS font-size bump when the device rotates to landscape. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* The shell never scrolls; the scroll container inside each screen does. This is
-     what stops the whole page rubber-banding away from the status bar. */
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
@@ -26,15 +23,13 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--bg);
-  color: var(--label);
+  color: var(--fg);
   font: var(--t-body);
-  /* manipulation removes the 300ms double-tap-zoom delay while leaving pinch-zoom
-     available — the accessible way to get native tap latency. */
+  /* Kills the 300ms double-tap delay while leaving pinch-zoom available. */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Chrome for a native feel; re-enabled per-element on anything worth copying. */
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
@@ -45,24 +40,11 @@ body {
   isolation: isolate;
 }
 
-/* Long-form content and numbers people may want to copy stay selectable. */
-.selectable,
-input,
-textarea {
-  -webkit-user-select: text;
-  user-select: text;
-  -webkit-touch-callout: default;
-}
-
-/* ---- Typography resets ----------------------------------------------------- */
-
 h1,
 h2,
 h3,
-h4,
 p,
-figure,
-blockquote {
+figure {
   margin: 0;
 }
 
@@ -72,13 +54,6 @@ ol {
   padding: 0;
   list-style: none;
 }
-
-a {
-  color: var(--growth);
-  text-decoration: none;
-}
-
-/* ---- Controls -------------------------------------------------------------- */
 
 button {
   font: inherit;
@@ -91,12 +66,10 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-input,
-textarea,
-select {
+input {
   font: inherit;
   color: inherit;
-  /* >=16px prevents iOS Safari from zooming the viewport on focus. Do not lower it. */
+  /* >=16px or iOS zooms the viewport on focus. Do not lower it. */
   font-size: max(16px, 1rem);
   border: 0;
   background: none;
@@ -105,45 +78,34 @@ select {
   appearance: none;
 }
 
-input[type='number'] {
-  -moz-appearance: textfield;
-}
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-img,
-svg,
-canvas {
+svg {
   display: block;
-  max-width: 100%;
 }
-
-/* ---- Focus ----------------------------------------------------------------- */
-/* Pointer users get nothing; keyboard users get a clear, brand-coloured ring. */
 
 :focus {
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid var(--growth);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--r-xs);
 }
 
-/* ---- Scrolling ------------------------------------------------------------- */
-
 /*
- * The one class every scrollable region uses. `overscroll-behavior: contain` keeps a
- * scroll gesture that hits the end of this list from chaining up to the shell, which
- * is what produces the "the whole app slid down" glitch on iOS.
+ * Press feedback is a scale, not a hover. Hover states leak onto touch devices
+ * as a stuck highlight after the finger lifts, so there are none.
  */
+.press {
+  transition: transform var(--dur-tap) ease-out, opacity var(--dur-tap) ease-out;
+}
+.press:active:not(:disabled) {
+  transform: scale(var(--press));
+}
+
 .scroll {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  /* Stops a scroll that hits the end of this list from chaining to the shell. */
   overscroll-behavior-y: contain;
   scrollbar-width: none;
 }
@@ -151,27 +113,39 @@ canvas {
   display: none;
 }
 
-.no-scrollbar {
-  scrollbar-width: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* ---- Type helpers ---------------------------------------------------------- */
+
+.display {
+  font: var(--t-display);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
 }
 
-/* ---- Utilities -------------------------------------------------------------- */
+.data {
+  font: var(--t-data);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data);
+  color: var(--fg-2);
+}
 
+.data-sm {
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--fg-3);
+}
+
+/* Figures must not reflow as they animate. */
 .num {
-  font-family: var(--font-num);
-  /* Fixed-width digits: an animating balance must not shuffle its own layout. */
+  font-family: var(--data);
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
 }
 
-.hairline-top {
-  box-shadow: inset 0 var(--hairline) 0 var(--separator);
-}
-.hairline-bottom {
-  box-shadow: inset 0 calc(-1 * var(--hairline)) 0 var(--separator);
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 .visually-hidden {
@@ -183,19 +157,42 @@ canvas {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-  border: 0;
 }
 
-/* Pressable: the standard iOS "scale down slightly under the finger" response. */
-.pressable {
-  transition: transform var(--dur-tap) var(--ease-tap), opacity var(--dur-tap) var(--ease-tap);
+/* ---- Tiles ------------------------------------------------------------------
+ * The repeating unit of the whole product: a monospace label over a figure, on
+ * a surface a shade up from the background. Hairlines between tiles are the flex
+ * gap showing the background through, never a border.
+ */
+
+.tile {
+  background: var(--surface);
+  border-radius: var(--r);
+  padding: var(--s-3) var(--s-4);
+  min-width: 0;
 }
-.pressable:active {
-  transform: scale(0.96);
-  opacity: 0.85;
+
+.tile-k {
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-@media (hover: hover) {
-  .pressable:hover {
-    opacity: 0.92;
-  }
+
+.tile-v {
+  font: var(--t-figure);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  margin-top: 3px;
+}
+
+.tile-row {
+  display: flex;
+  gap: 1px;
+}
+.tile-row > .tile {
+  flex: 1;
 }

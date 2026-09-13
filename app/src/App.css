@@ -5,29 +5,7 @@
   overflow: hidden;
 }
 
-.app-body {
+.app-screen {
   position: absolute;
   inset: 0;
-}
-
-.app-page {
-  position: absolute;
-  inset: 0;
-}
-
-/*
- * The tab bar lives in its own positioned layer so it can translate out of view
- * without disturbing the page underneath.
- */
-.app-tabbar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--z-tabbar);
-  will-change: transform;
-}
-
-.app-tabbar .tabbar {
-  position: relative;
 }

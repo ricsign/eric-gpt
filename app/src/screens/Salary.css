@@ -1,0 +1,80 @@
+.salary {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--sa-top) + var(--s-10)) var(--gutter)
+    calc(var(--sa-bottom) + var(--s-6));
+  background: var(--bg);
+}
+
+.salary-kicker {
+  margin-bottom: auto;
+}
+
+.salary-q {
+  font: var(--t-display);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  max-width: 9ch;
+}
+
+/* The number is the hero of the screen, as it is on every screen. */
+.salary-value {
+  font: var(--t-hero);
+  font-size: 56px;
+  color: var(--accent);
+  margin-top: var(--s-6);
+  transition: transform var(--dur-tap) ease-out;
+  transform-origin: left center;
+}
+
+.salary-value[data-dragging] {
+  transform: scale(1.03);
+}
+
+.salary-track {
+  position: relative;
+  height: var(--tap);
+  margin-top: var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r);
+  overflow: hidden;
+  /* The bar owns horizontal gestures outright; nothing here scrolls. */
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+.salary-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.salary-note {
+  margin-top: var(--s-3);
+}
+
+.salary-actions {
+  margin-top: auto;
+  padding-top: var(--s-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.salary-go {
+  height: 56px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--r);
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+}
+
+.salary-skip {
+  height: var(--tap);
+  font: var(--t-data);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data);
+  color: var(--fg-3);
+}
