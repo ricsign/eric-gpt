@@ -241,8 +241,10 @@
 .napkin-guess {
   font: var(--t-data-sm);
   font-size: min(10px, 3cqi);
-  text-transform: uppercase;
-  letter-spacing: var(--track-data-wide);
+  /* Sentence case, unlike every other label on the paper: the guess prints a
+     dial reading, and "8MO" is not how the answer two lines above it is
+     written. One value spelled two ways on one card reads as two values. */
+  letter-spacing: 0.1em;
   color: var(--ink-3);
   margin-top: -4px;
 }

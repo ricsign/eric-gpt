@@ -668,10 +668,13 @@ function paintCard(
 
   if (input.guess !== undefined) {
     if (!measure) {
+      // Sentence case, unlike every other label on the card: the guess prints
+      // a dial reading, and "8MO" is not how the answer two lines above it is
+      // written. One value, two spellings, on the same piece of paper.
       ctx.fillStyle = palette.ink
       ctx.globalAlpha = 0.45
       ctx.font = font(400, 23, 'data')
-      drawTracked(ctx, `I GUESSED ${input.guess.toUpperCase()}`, PAD, y, 3.6)
+      drawTracked(ctx, `I guessed ${input.guess}.`, PAD, y, 2.6)
       ctx.globalAlpha = 1
     }
     y += 42
