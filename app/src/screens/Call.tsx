@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BlockBar } from '../ui/BlockBar'
 import { COMPUTE } from '../calls/compute'
 import { resolveFact, stepCount, type Call, type Profile } from '../calls/types'
@@ -38,12 +38,16 @@ export function CallScreen({
   const [value, setValue] = useState(call.variable.start)
   const [touched, setTouched] = useState(false)
   const [remaining, setRemaining] = useState(() => msUntilNextCall())
-  const tick = useRef<number | undefined>(undefined)
 
-  // The countdown only needs to be right to the second, and only while visible.
-  if (tick.current === undefined && typeof window !== 'undefined') {
-    tick.current = window.setInterval(() => setRemaining(msUntilNextCall()), 1000)
-  }
+  // The countdown only needs to be right to the second, and only while this
+  // screen is mounted. Started in render it would outlive every visit — the
+  // player passes through here once a day for as long as they keep the app
+  // open, and each pass would leave another timer ticking against a screen
+  // that no longer exists.
+  useEffect(() => {
+    const id = window.setInterval(() => setRemaining(msUntilNextCall()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const compute = COMPUTE[call.compute]
   const outcome = useMemo(

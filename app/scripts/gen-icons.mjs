@@ -7,7 +7,7 @@
  * Run: node scripts/gen-icons.mjs
  */
 import { launch } from './browser.mjs'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 

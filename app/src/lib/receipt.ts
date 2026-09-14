@@ -239,12 +239,38 @@ export function playValue(input: ReceiptInput): string {
 export const MAX_LINES = 6
 
 export function receiptLines(input: ReceiptInput): BreakdownLine[] {
-  const play: BreakdownLine = { label: 'YOUR PLAY', value: playValue(input) }
-  // Compute functions own the middle of the receipt; the play line is prepended
-  // because a receipt that does not say what you actually chose is unreadable to
-  // whoever you sent it to.
+  // Several compute functions open their breakdown by stating the position in
+  // their own units, which put the same number on the receipt twice under two
+  // labels: "YOUR PLAY 63bps" sitting directly above "EXPENSE RATIO 63 BP".
+  //
+  // Where that happens the compute function's line wins and the generic one is
+  // dropped, because "EXPENSE RATIO" says what the number is and "YOUR PLAY"
+  // only says that it was chosen. The play line is prepended everywhere else,
+  // since a receipt that never states what you picked is unreadable to whoever
+  // you sent it to.
   const rest = input.breakdown.filter((l) => l.label.toUpperCase() !== 'YOUR PLAY')
+  const stated = rest.some((l) => statesPlay(l, input.value))
+  if (stated) return rest.slice(0, MAX_LINES)
+  const play: BreakdownLine = { label: 'YOUR PLAY', value: playValue(input) }
   return [play, ...rest].slice(0, MAX_LINES)
+}
+
+/**
+ * Whether a breakdown line already tells the player where they left the control.
+ *
+ * The emphasised line is excluded: it is the receipt's punchline, so on a call
+ * whose headline figure happens to equal the position it cannot also be read as
+ * a restatement of it, or the receipt would lose the play entirely.
+ */
+function statesPlay(line: BreakdownLine, value: number): boolean {
+  if (line.emphasis) return false
+  // At the bottom of a control everything on the receipt is zero, so any line
+  // would match and the play would be dropped for looking like a restatement —
+  // leaving a receipt that never says the player chose nothing, which on the
+  // match call is the most consequential answer available.
+  if (value === 0) return false
+  const first = line.value.match(/-?\d[\d,]*(?:\.\d+)?/)
+  return first !== null && Number(first[0].replace(/,/g, '')) === value
 }
 
 /* ---- Plain text ---------------------------------------------------------------

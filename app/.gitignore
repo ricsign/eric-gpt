@@ -26,3 +26,13 @@ dist-ssr
 # Agent scratch files. Double-underscore prefix is the convention for throwaway
 # scripts and probes written during a build; they must never reach history.
 __*
+
+# Agent and debugging scratch files. These are written into src/ so they can
+# import the modules under test, which means the only thing keeping them out of
+# history is this rule.
+src/**/zz-scratch-*
+src/**/__*
+
+# Generated at prebuild by scripts/gen-springs.mjs from the spring maths.
+# Vercel runs `npm run build`, which regenerates it before vite starts.
+src/styles/springs.css

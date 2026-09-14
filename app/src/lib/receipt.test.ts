@@ -14,6 +14,8 @@ import {
   tearPath,
   type ReceiptInput,
 } from './receipt'
+import { CALLS } from '../calls/registry'
+import { COMPUTE } from '../calls/compute'
 
 const SALARY = 62_000
 
@@ -174,6 +176,91 @@ describe('receiptLines', () => {
       withPatch({ breakdown: [{ label: 'Your play', value: '3%' }, { label: 'PAY', value: '$1' }] }),
     )
     expect(lines.filter((l) => l.label.toUpperCase() === 'YOUR PLAY')).toHaveLength(1)
+  })
+})
+
+describe('the receipt states the play exactly once', () => {
+  // The receipt is the thing that leaves the app. A number printed twice under
+  // two labels reads as two findings, and the reader has no way to tell that
+  // "YOUR PLAY 63bps" and "EXPENSE RATIO 63 BP" are the same fact.
+  it('drops the generic line when a compute line already states the position', () => {
+    const lines = receiptLines({
+      ...BASE,
+      value: 63,
+      unit: 'bps',
+      breakdown: [
+        { label: 'EXPENSE RATIO', value: '63 BP' },
+        { label: 'FEE / MO NOW', value: '$48' },
+        { label: 'LOST TO FEES BY 65', value: '$349,976', emphasis: true },
+      ],
+    })
+    expect(lines.map((l) => l.label)).not.toContain('YOUR PLAY')
+    expect(lines[0]).toEqual({ label: 'EXPENSE RATIO', value: '63 BP' })
+  })
+
+  it('keeps the generic line when nothing else states the position', () => {
+    const lines = receiptLines({
+      ...BASE,
+      value: 8,
+      unit: '%',
+      breakdown: [
+        { label: 'YEAR ONE', value: '$4,960' },
+        { label: 'OFFER PULLED', value: '35%' },
+        { label: 'LIFETIME AT 65', value: '$1.2M', emphasis: true },
+      ],
+    })
+    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '8%' })
+  })
+
+  it('never lets the emphasised line stand in for the play', () => {
+    // A call whose headline figure happens to equal the position must still say
+    // what was chosen, or the receipt loses the play entirely.
+    const lines = receiptLines({
+      ...BASE,
+      value: 12,
+      unit: ' MONTHS',
+      breakdown: [
+        { label: 'PAYMENT / MO', value: '$250' },
+        { label: 'DEFERRED INTEREST', value: '12', emphasis: true },
+      ],
+    })
+    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '12 MONTHS' })
+  })
+
+  it('states the position exactly once on every real call', () => {
+    // Not "no two lines share a number" — at 3% on call 1 the employer adds
+    // $930 and the player misses exactly $930, which are two different facts
+    // that happen to be equal. What must never happen is the *position* being
+    // printed twice, because that is one fact wearing two labels.
+    for (const call of CALLS) {
+      const compute = COMPUTE[call.compute]
+      for (const value of [call.variable.min, call.variable.start, call.variable.max]) {
+        const { breakdown } = compute(value, { salary: SALARY, age: 30 })
+        const lines = receiptLines({ ...BASE, value, unit: call.variable.unit, breakdown })
+        const stating = lines.filter((l) => {
+          const first = l.value.match(/-?\d[\d,]*(?:\.\d+)?/)
+          return first !== null && Number(first[0].replace(/,/g, '')) === value
+        })
+        // The generic line is only there to fill a gap. If a compute line
+        // already carries the position, adding "YOUR PLAY" alongside it prints
+        // one fact twice — which is the whole bug this guards.
+        // At zero every line reads as the play, so the generic one stays —
+        // see the guard in statesPlay.
+        if (value !== 0 && stating.some((l) => l.label !== 'YOUR PLAY')) {
+          expect(
+            lines.map((l) => l.label),
+            `call ${call.id} at ${value}: ${stating.map((l) => l.label).join(' / ')}`,
+          ).not.toContain('YOUR PLAY')
+        }
+        // Whatever else it says, it has to say what was chosen.
+        // Compared with the thousands separators stripped: the play is written
+        // "$3,200" on the receipt and 3200 in the record.
+        expect(
+          lines.some((l) => l.value.replace(/,/g, '').includes(String(value))),
+          `call ${call.id} at ${value} never states the play`,
+        ).toBe(true)
+      }
+    }
   })
 })
 

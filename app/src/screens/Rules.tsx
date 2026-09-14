@@ -30,6 +30,15 @@ export function Rules({
 }) {
   const earned = useMemo(() => earnedRules(results, calls), [results, calls])
 
+  // What is still sealed, by domain only. The wording of an unearned rule is
+  // the reward for playing the call, so it is never shown here — but the shape
+  // of the collection is, because a page that is three quarters empty on day
+  // one reads as a broken screen rather than as one with room to fill.
+  const sealed = useMemo(() => {
+    const has = new Set(earned.map((r) => r.callId))
+    return calls.filter((c) => !has.has(c.id)).map((c) => c.domain)
+  }, [calls, earned])
+
   return (
     <div className="rules scroll">
       <header className="rules-head">
@@ -52,7 +61,9 @@ export function Rules({
       </p>
 
       {earned.length === 0 ? (
-        <p className="rules-empty">No rules yet.</p>
+        <p className="rules-empty">
+          Play today's call and the rule behind it lands here, permanently.
+        </p>
       ) : (
         <ol className="rules-list">
           {earned.map((r) => (
@@ -66,6 +77,20 @@ export function Rules({
             </li>
           ))}
         </ol>
+      )}
+
+      {sealed.length > 0 && (
+        <section className="rules-sealed">
+          <p className="rules-count data-sm num">{sealed.length} still sealed</p>
+          <ul className="rules-seal-list">
+            {sealed.map((domain, i) => (
+              <li className="rules-seal" key={`${domain}-${i}`}>
+                <span className="rules-tag data-sm">{domain}</span>
+                <span className="rules-seal-bar" aria-hidden="true" />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   )

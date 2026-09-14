@@ -89,3 +89,22 @@ export function formatCallDate(day: string): string {
     .toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     .toUpperCase()
 }
+
+/**
+ * The `count` compound days ending at `day`, oldest first.
+ *
+ * Used by the Tab's attendance strip. Dates are stepped in UTC deliberately:
+ * a compound day is already a local-calendar key by the time it gets here, so
+ * treating it as UTC midnight makes the arithmetic immune to the daylight-
+ * saving shift that would otherwise drop or repeat a day twice a year.
+ */
+export function recentDays(count: number, day: string = compoundDay()): string[] {
+  const [y, m, d] = day.split('-').map(Number)
+  const end = Date.UTC(y, m - 1, d)
+  return Array.from({ length: count }, (_, i) => {
+    const t = new Date(end - (count - 1 - i) * 86_400_000)
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(
+      t.getUTCDate(),
+    ).padStart(2, '0')}`
+  })
+}

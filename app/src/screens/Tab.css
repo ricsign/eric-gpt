@@ -92,6 +92,45 @@
 }
 
 /* A solid block, not a pill: a verdict should land, not reassure. */
+
+/* ---- Attendance --------------------------------------------------------------
+ * Fourteen slots, one per day, filled where a call was closed. This is the only
+ * thing on the Tab that has something to show before the first play, which is
+ * the point: a ledger with one row in it needs a surface around it that reads
+ * as empty-on-purpose rather than as a screen that failed to load.
+ */
+.tab-attendance {
+  margin-top: var(--s-5);
+}
+
+.tab-days {
+  display: flex;
+  gap: 4px;
+  margin-top: var(--s-2);
+}
+
+.tab-day {
+  flex: 1;
+  height: 28px;
+  border-radius: 3px;
+  background: var(--surface);
+}
+
+.tab-day[data-played] {
+  background: var(--accent);
+}
+
+/* Today is outlined whether or not it has been played, so the strip always says
+   where "now" is — without it, an unplayed today is indistinguishable from a
+   missed Tuesday. */
+.tab-day[data-today] {
+  box-shadow: inset 0 0 0 2px var(--fg-3);
+}
+
+.tab-day[data-played][data-today] {
+  box-shadow: inset 0 0 0 2px var(--bg);
+}
+
 .tab-chip {
   margin-left: auto;
   padding: 4px var(--s-2);
@@ -110,8 +149,11 @@
 }
 
 .tab-chip[data-v='over'] {
-  background: var(--caution);
-  color: var(--ink);
+  /* The same red as 'short'. A miss is a miss, and the outcome screen already
+     showed this exact result in loss red — a yellow chip for it on the ledger
+     would be the product quietly grading the two kinds of miss differently. */
+  background: var(--loss);
+  color: #fff;
 }
 
 .tab-delta {
@@ -128,5 +170,5 @@
 }
 
 .tab-delta[data-v='over'] {
-  color: var(--caution);
+  color: var(--loss);
 }

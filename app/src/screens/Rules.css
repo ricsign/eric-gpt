@@ -81,6 +81,65 @@
   opacity: 0.8;
 }
 
+
+/* ---- Still sealed ------------------------------------------------------------
+ * The shape of the collection without any of its contents. A rule's wording is
+ * the reward for playing its call, so a sealed row carries only a domain and a
+ * redacted bar — enough to show the page has a length, never enough to spoil a
+ * call the player has not reached.
+ */
+.rules-sealed {
+  margin-top: var(--s-6);
+  /* Hairline above the section: background through a gap, as everywhere else. */
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-4);
+}
+
+.rules-seal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: var(--s-3);
+}
+
+.rules-seal {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  background: var(--surface);
+  padding: var(--s-3) var(--s-4);
+}
+
+/* Dimmed, but still a readable label: the domain is the only thing a sealed row
+   has to say, so fading it to the point of illegibility would leave nine rows
+   of nothing. The redaction bar carries the "locked" reading instead. */
+.rules-seal .rules-tag {
+  margin-left: 0;
+  color: var(--fg-2);
+}
+
+/* The redaction. Sized to a plausible rule so the column has a rhythm rather
+   than a ragged edge, and pushed right so the domains stay left-aligned. */
+.rules-seal-bar {
+  margin-left: auto;
+  width: 46%;
+  height: 10px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--fg-3) 0 14px,
+    transparent 14px 20px
+  );
+  opacity: 0.35;
+}
+
+/* A sealed rule is not a rule. It has no place on a printed reference. */
+@media print {
+  .rules-sealed {
+    display: none;
+  }
+}
+
 /* ---- Print -------------------------------------------------------------------
  * The page has to survive leaving the app: printed, or saved as a PDF, it is a
  * reference someone reads in a dealership. That means resetting the phone shell

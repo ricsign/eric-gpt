@@ -5,7 +5,7 @@
  */
 /* eslint-disable react/only-export-components */
 import { useMemo } from 'react'
-import { callNumber, formatCallDate } from '../lib/schedule'
+import { callNumber, compoundDay, formatCallDate, recentDays } from '../lib/schedule'
 import { daysBetween, moneyCompact } from '../lib/format'
 import type { CallResult, Profile, Verdict } from '../calls/types'
 import './Tab.css'
@@ -124,6 +124,20 @@ export function Tab({
   const rows = useMemo(() => [...results].reverse(), [results])
   const years = Math.max(0, RETIRE_AT - profile.age)
 
+  // Attendance, not score. A fortnight is long enough that a gap is visible and
+  // short enough that it stays a strip rather than a chart — and on day one it
+  // is thirteen empty slots and one filled, which reads as a row with room in
+  // it rather than as a screen that failed to load.
+  const attendance = useMemo(() => {
+    const played = new Set(results.map((r) => r.day))
+    const today = compoundDay()
+    return recentDays(14).map((day) => ({
+      day,
+      played: played.has(day),
+      today: day === today,
+    }))
+  }, [results])
+
   return (
     <div className="tab scroll">
       <header className="tab-head">
@@ -173,8 +187,24 @@ export function Tab({
         </p>
       )}
 
+      <section className="tab-attendance">
+        <p className="data-sm">Last 14 days</p>
+        <ol className="tab-days">
+          {attendance.map((d) => (
+            <li
+              className="tab-day"
+              key={d.day}
+              data-played={d.played ? '' : undefined}
+              data-today={d.today ? '' : undefined}
+            />
+          ))}
+        </ol>
+      </section>
+
       {rows.length === 0 ? (
-        <p className="tab-empty">No calls yet.</p>
+        <p className="tab-empty">
+          Your first call lands here the moment you lock one in.
+        </p>
       ) : (
         <ol className="tab-rows">
           {rows.map((r, i) => (
