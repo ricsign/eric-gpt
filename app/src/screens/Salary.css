@@ -2,28 +2,88 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: calc(var(--sa-top) + var(--s-10)) var(--gutter)
-    calc(var(--sa-bottom) + var(--s-6));
   background: var(--bg);
 }
 
-.salary-kicker {
-  margin-bottom: auto;
+/*
+ * The body scrolls; the actions do not.
+ *
+ * Two dials, five bands and three notes do not fit inside 874px once the safe
+ * areas are taken, and on this screen in particular the primary action cannot
+ * be allowed below the fold: it is an optional step, so anything that makes it
+ * look unfinished is a step nobody finishes.
+ */
+.salary-body {
+  flex: 1;
+  min-height: 0;
+  padding: calc(var(--sa-top) + var(--s-6)) var(--gutter) var(--s-6);
 }
 
+/* Sentence case, not the uppercase display treatment the question screens use.
+   This one is a question put to a person about her own pay, and shouting it
+   reads as a demand. */
 .salary-q {
-  font: var(--t-display);
-  text-transform: uppercase;
+  font: var(--t-headline);
   letter-spacing: var(--track-display);
-  max-width: 9ch;
+  text-wrap: balance;
 }
 
-/* The number is the hero of the screen, as it is on every screen. */
-.salary-value {
-  font: var(--t-hero);
-  font-size: 56px;
-  color: var(--accent);
+.salary-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
   margin-top: var(--s-6);
+}
+
+/* ---- Bands ------------------------------------------------------------------
+ * Tapped first, and by most people. They wrap to two rows at 402px, which is
+ * why they stretch: flush rows read as one control, ragged ones read as five
+ * loose buttons.
+ */
+
+.salary-bands {
+  display: flex;
+  flex-wrap: wrap;
+  /* Hairline is the background showing through a 1px gap, never a border. */
+  gap: 1px;
+}
+
+.salary-band {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  padding: 0 var(--s-3);
+  background: var(--surface);
+  border-radius: var(--r);
+  color: var(--fg-2);
+  font: var(--t-data);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data);
+  white-space: nowrap;
+  transition: background-color var(--dur-tap) ease-out, color var(--dur-tap) ease-out;
+}
+
+/* Lit by the value, not by the tap — so dragging the dial into a band lights
+   it, and the two controls never contradict each other. */
+.salary-band[aria-pressed='true'] {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ---- Dial -------------------------------------------------------------------- */
+
+/* The number is the hero here, as it is on every screen. 40px rather than the
+   64px of a question readout: this screen has two of them, and neither is the
+   answer to anything. */
+.salary-value {
+  /* `output` is inline by default, and a transform on an inline box does
+     nothing — which is why the old drag-scale never actually fired. */
+  display: block;
+  font: var(--t-hero);
+  font-size: 40px;
+  color: var(--accent);
+  /* The figure rewrites on every frame of a drag; a number that reflows its
+     own container as it counts is the clearest tell that this is a web page. */
+  font-variant-numeric: tabular-nums;
   transition: transform var(--dur-tap) ease-out;
   transform-origin: left center;
 }
@@ -32,10 +92,14 @@
   transform: scale(1.03);
 }
 
+.salary-value-label {
+  margin-top: var(--s-1);
+}
+
 .salary-track {
   position: relative;
   height: var(--tap);
-  margin-top: var(--s-4);
+  margin-top: var(--s-3);
   background: var(--surface);
   border-radius: var(--r);
   overflow: hidden;
@@ -49,20 +113,56 @@
   background: var(--accent);
 }
 
+/* ---- Prose -------------------------------------------------------------------
+ * These three lines are sentences meant to be read, not labels meant to be
+ * scanned, so they set in the body face. The privacy line especially: an
+ * anxious reader looks for it first, and at 11px tracked out it would be the
+ * least legible thing on the screen.
+ */
+
+.salary-hint,
+.salary-why,
 .salary-note {
-  margin-top: var(--s-3);
+  font: var(--t-body-sm);
+  color: var(--fg-2);
 }
 
+/* The hint only matters to someone who has decided a band is too coarse. */
+.salary-hint {
+  color: var(--fg-3);
+}
+
+.salary-note {
+  margin-top: var(--s-6);
+}
+
+/* ---- Commit ------------------------------------------------------------------ */
+
 .salary-actions {
-  margin-top: auto;
-  padding-top: var(--s-8);
+  position: relative;
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  padding: var(--s-4) var(--gutter) calc(var(--sa-bottom) + var(--s-4));
+  background: var(--bg);
+}
+
+/* A pinned footer over a scrolling body needs a top edge, or the last line of
+   the body reads as clipped rather than scrolled. A 1px block of the lighter
+   ground, not a border: a border rounds with the box and softens at the ends. */
+.salary-actions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--hairline);
 }
 
 .salary-go {
-  height: 56px;
+  height: 58px;
   background: var(--accent);
   color: var(--on-accent);
   border-radius: var(--r);
