@@ -611,3 +611,245 @@ export const repairOrReplace: ComputeFn = (value, profile) => {
     ],
   }
 }
+
+/* ==========================================================================
+ * 8. feeDragCall
+ *
+ * Value: expense ratio in basis points, 3-150.
+ *
+ * Model. A portfolio the player plausibly already has — one year of salary
+ * invested, plus 10% of salary a month — run to 65 at 7% through
+ * `feeDrag()` from lib/finance.ts, which is the only place in this file that
+ * still walks month by month. That is two passes of the series per frame, a few
+ * hundred microseconds, and it is worth it to keep the fee maths in one place.
+ *
+ * at65 is the wealth this expense ratio KEEPS against the worst fund on the
+ * dial (150bp), so higher is better here exactly as it is on every other call.
+ * The terminal wealth lost to the fee outright is on the receipt, emphasised,
+ * because that is the number that lands: the share of the outcome, not the
+ * share of the balance.
+ *
+ * The dial bottoms out at 3bp because that is what the cheapest broad index
+ * funds actually charge. Optimal is the floor; there is no argument on the
+ * other side.
+ * ========================================================================== */
+
+const WORST_ER = 0.015
+
+export const feeDragCall: ComputeFn = (value, profile) => {
+  const er = Math.max(0, value) / 10_000
+  const n = monthsTo65(profile)
+  const principal = profile.salary
+  const monthly = (profile.salary * 0.1) / 12
+
+  const input = { principal, monthly, annualRate: NOMINAL, years: n / 12 }
+  const drag = feeDrag(input, er)
+
+  const worstRm = monthlyRate(NOMINAL - WORST_ER)
+  const worst = fvLump(principal, n, worstRm) + fvAnnuity(monthly, n, worstRm)
+
+  return {
+    cost: (principal * er) / 12,
+    benefit: (WORST_ER - er) * principal,
+    at65: drag.withFee - worst,
+    breakdown: [
+      line('EXPENSE RATIO', `${Math.round(value)} BP`),
+      line('FEE / MO NOW', money((principal * er) / 12)),
+      line('LOST TO FEES BY 65', money(drag.lost), true),
+      line('SHARE OF OUTCOME', percent(drag.shareOfOutcome, 1)),
+      line('YOU KEEP', moneyCompact(drag.withFee)),
+    ],
+    // Index 0 is 3bp. Broad index territory, then actively-managed territory,
+    // then the funds that quietly take a quarter of the outcome.
+    blockTint: (index) => (index + 3 <= 20 ? 'accent' : index + 3 >= 75 ? 'loss' : 'plain'),
+  }
+}
+
+/* ==========================================================================
+ * 9. rentVsBuy
+ *
+ * Value: years the player expects to stay, 0-15.
+ *
+ * Model. A $360,000 home, 20% down, 3% closing, 30 years at 6.5%, 1.5% a year
+ * in tax/insurance/maintenance, 3% appreciation, 6% to sell. Rent starts at
+ * $2,160 — 0.6% of price a month, the usual rent-to-price ratio — and grows
+ * with the same 3%. None of these are in facts.ts; all are assumptions, and the
+ * 6% selling cost and the down payment's opportunity cost are the two that
+ * decide the answer.
+ *
+ * Two net worths at the end of the stay:
+ *   buyer  = sale proceeds after 6% minus the mortgage balance
+ *   renter = down payment and closing costs invested at 7%, plus every month
+ *            the buyer spent more than the renter, also invested at 7%
+ * The mortgage balance is the standard closed form; the cash-flow difference is
+ * two geometric sums, settled mid-year. No amortisation table.
+ *
+ * Mortgage interest deduction is deliberately out: at these numbers the
+ * standard deduction wins for a single filer, so modelling it would flatter
+ * buying on a return almost nobody actually claims.
+ *
+ * Break-even lands just under five years, which is where the call's optimal of
+ * 5-and-up comes from. The block tint is the model's own sign, not a rule typed
+ * in by hand.
+ * ========================================================================== */
+
+const HOME = 360_000
+const DOWN_SHARE = 0.2
+const CLOSING_SHARE = 0.03
+const MORT_APR = 0.065
+const MORT_MONTHS = 360
+const SELL_COST = 0.06
+const OWN_COST = 0.015
+const APPRECIATION = 0.03
+const RENT_MONTHLY = 2_160
+
+const MORT_PRINCIPAL = HOME * (1 - DOWN_SHARE)
+const MORT_I = MORT_APR / 12
+const MORT_GROWTH = Math.pow(1 + MORT_I, MORT_MONTHS)
+const MORT_PAYMENT = (MORT_PRINCIPAL * MORT_I * MORT_GROWTH) / (MORT_GROWTH - 1)
+
+/** Sum of q^k for k = 0..n-1. */
+function geom(q: number, n: number): number {
+  if (n <= 0) return 0
+  return Math.abs(1 - q) < 1e-12 ? n : (1 - Math.pow(q, n)) / (1 - q)
+}
+
+/** Positive means buying is ahead at the end of a `years`-long stay. */
+function buyMinusRent(years: number): { delta: number; cashGap: number } {
+  const y = Math.max(0, years)
+  const m = Math.round(y * 12)
+
+  const owed =
+    (MORT_PRINCIPAL * (MORT_GROWTH - Math.pow(1 + MORT_I, m))) / (MORT_GROWTH - 1)
+  const buyer = (1 - SELL_COST) * HOME * Math.pow(1 + APPRECIATION, y) - owed
+
+  // Annual cash the buyer spends over the renter: fixed payment plus running
+  // costs that inflate, against rent that inflates at the same rate.
+  const fixed = 12 * MORT_PAYMENT
+  const inflating = OWN_COST * HOME - 12 * RENT_MONTHLY
+  const n = Math.round(y)
+  const cashGap = fixed * n + inflating * geom(1 + APPRECIATION, n)
+  const invested =
+    n > 0
+      ? Math.pow(1 + NOMINAL, n - 0.5) *
+        (fixed * geom(1 / (1 + NOMINAL), n) +
+          inflating * geom((1 + APPRECIATION) / (1 + NOMINAL), n))
+      : 0
+
+  const renter =
+    HOME * (DOWN_SHARE + CLOSING_SHARE) * Math.pow(1 + NOMINAL, y) + invested
+
+  return { delta: buyer - renter, cashGap }
+}
+
+export const rentVsBuy: ComputeFn = (value, profile) => {
+  const years = Math.min(15, Math.max(0, value))
+  const { delta, cashGap } = buyMinusRent(years)
+  const n = monthsTo65(profile)
+  const at65 = fvLump(delta, n - Math.round(years * 12))
+
+  return {
+    cost: years > 0 ? cashGap / (years * 12) : MORT_PAYMENT + (OWN_COST * HOME) / 12 - RENT_MONTHLY,
+    benefit: delta / Math.max(1, years),
+    at65,
+    breakdown: [
+      line('OWNING / MO', money(MORT_PAYMENT + (OWN_COST * HOME) / 12)),
+      line('RENTING / MO', money(RENT_MONTHLY)),
+      line('COST TO SELL', money(SELL_COST * HOME * Math.pow(1 + APPRECIATION, years))),
+      line('BUY MINUS RENT', money(delta), true),
+      line('AT 65', moneyCompact(at65)),
+    ],
+    // The tint is the model evaluated at that block, not a rule typed by hand:
+    // red until the sale covers what it cost to get in and back out.
+    blockTint: (index) => (buyMinusRent(index).delta >= 0 ? 'accent' : 'loss'),
+  }
+}
+
+/* ==========================================================================
+ * 10. timingMarket
+ *
+ * Value: number of the market's best days missed by being out, 0-30.
+ *
+ * Model. Missing the ten best days roughly halves terminal wealth over a long
+ * horizon — the finding every version of this study reproduces. Rather than
+ * hardcode a drag, the code solves for it: the per-year drag that turns the
+ * horizon's growth into exactly half is computed from the player's own horizon,
+ * so a 30-year-old and a 55-year-old both get an internally consistent number.
+ *
+ * The shape is concave, drag = D * (1 - e^(-d/15)), because the best days
+ * cluster — they land in the middle of the worst weeks, next to each other, and
+ * the first few you miss are the ones that cost most. By 30 days the drag has
+ * nearly saturated, leaving about 30% of the wealth, which is the right order
+ * of magnitude against the published studies.
+ *
+ * What this does NOT model, and should be said: there is no upside to being
+ * out. Missing the worst days would help by a similar amount. The honest claim
+ * is that nobody reliably separates the two, not that being out is mechanically
+ * a loss — and that is exactly why the optimum is zero days.
+ * ========================================================================== */
+
+const CLUSTER_TAU = 15
+const HALVING_DAYS = 10
+
+export const timingMarket: ComputeFn = (value, profile) => {
+  const days = Math.max(0, value)
+  const n = monthsTo65(profile)
+  const years = n / 12
+
+  // Drag at ten days that turns the whole horizon's growth into half of itself.
+  const halving = NOMINAL - (Math.pow(0.5, 1 / years) * (1 + NOMINAL) - 1)
+  const scale = halving / (1 - Math.exp(-HALVING_DAYS / CLUSTER_TAU))
+  const drag = scale * (1 - Math.exp(-days / CLUSTER_TAU))
+  const rate = Math.max(-0.9, NOMINAL - drag)
+
+  const principal = profile.salary
+  const monthly = (profile.salary * 0.1) / 12
+  const rm = monthlyRate(rate)
+
+  const at65 = fvLump(principal, n, rm) + fvAnnuity(monthly, n, rm)
+  const perfect = fvLump(principal, n, RM) + fvAnnuity(monthly, n, RM)
+  const gaveUp = perfect - at65
+
+  return {
+    cost: gaveUp / n,
+    benefit: principal * rate,
+    at65,
+    breakdown: [
+      line('DAYS MISSED', `${Math.round(days)}`),
+      line('ANNUAL RETURN', percent(rate, 1)),
+      line('YOU KEEP', percent(perfect > 0 ? at65 / perfect : 0, 0)),
+      line('GAVE UP BY 65', money(gaveUp), true),
+      line('AT 65', moneyCompact(at65)),
+    ],
+    blockTint: (index) => (index === 0 ? 'accent' : index <= 10 ? 'loss' : 'plain'),
+  }
+}
+
+/* ---- Registry ------------------------------------------------------------- */
+
+/** Keyed by `Call.compute`. */
+export const COMPUTE: Record<string, ComputeFn> = {
+  employerMatch,
+  debtSplit,
+  emergencyFund,
+  promoDeadline,
+  anchorOffer,
+  rothSplit,
+  repairOrReplace,
+  feeDragCall,
+  rentVsBuy,
+  timingMarket,
+}
+
+/** Every outcome field is a real number, whatever the player drags it to. */
+export function isSane(o: CallOutcome): boolean {
+  return (
+    Number.isFinite(o.cost) &&
+    Number.isFinite(o.benefit) &&
+    Number.isFinite(o.at65) &&
+    o.breakdown.length >= 3 &&
+    o.breakdown.length <= 6 &&
+    o.breakdown.filter((b) => b.emphasis).length === 1 &&
+    o.breakdown.every((b) => b.label.length > 0 && b.value.length > 0)
+  )
+}

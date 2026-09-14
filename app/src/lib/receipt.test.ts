@@ -303,11 +303,13 @@ it('shot', () => {
   const html = `<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/src/styles/fonts.css"><link rel="stylesheet" href="/src/styles/tokens.css"><link rel="stylesheet" href="/src/styles/base.css"><link rel="stylesheet" href="/src/ui/Receipt.css">
 <style>body{background:var(--bg);display:flex;gap:24px;padding:24px;align-items:flex-start}
-.col{width:362px}.thumb{width:120px}</style></head><body>
+.col{width:362px}
+.thumb{width:120px;height:190px;overflow:hidden}
+.thumb>div{width:362px;transform:scale(.331);transform-origin:top left}</style></head><body>
 <div class="col">${render(BASE)}</div>
-<div class="thumb">${render(BASE)}</div>
+<div class="thumb"><div>${render(BASE)}</div></div>
 <div class="col">${render(withPatch({ verdict: 'optimal', value: 6, at65: 601300, delta: 0 }))}</div>
-<div class="thumb">${render(withPatch({ verdict: 'optimal', value: 6, at65: 601300, delta: 0 }))}</div>
+<div class="thumb"><div>${render(withPatch({ verdict: 'optimal', value: 6, at65: 601300, delta: 0 }))}</div></div>
 </body></html>`
   writeFileSync('/home/user/eric-gpt/app/public/__shot.html', html)
 })
