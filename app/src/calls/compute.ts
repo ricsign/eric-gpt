@@ -644,8 +644,26 @@ export const repairOrReplace: ComputeFn = (value, profile) => {
 
 const WORST_ER = 0.015
 
+/**
+ * The dial, in the units the player drags: 3bp to 150bp in 3bp steps.
+ *
+ * `blockTint` is handed a step POSITION, not a value, so the step size has to
+ * live here or the tint lands on the wrong blocks. Writing it as `index + 3` —
+ * only correct on a 1bp dial — painted eighteen blocks accent and never reached
+ * the loss band at all, which silently deleted the only part of this call that
+ * teaches without words.
+ */
+const FEE_MIN_BP = 3
+const FEE_MAX_BP = 150
+const FEE_STEP_BP = 3
+
+/** Where index funds stop and manager fees start, and where they get ugly. */
+const FEE_INDEX_BP = 20
+const FEE_UGLY_BP = 75
+
 export const feeDragCall: ComputeFn = (value, profile) => {
-  const er = Math.max(0, value) / 10_000
+  const bp = Math.min(FEE_MAX_BP, Math.max(FEE_MIN_BP, value))
+  const er = bp / 10_000
   const n = monthsTo65(profile)
   const principal = profile.salary
   const monthly = (profile.salary * 0.1) / 12
@@ -661,15 +679,21 @@ export const feeDragCall: ComputeFn = (value, profile) => {
     benefit: (WORST_ER - er) * principal,
     at65: drag.withFee - worst,
     breakdown: [
-      line('EXPENSE RATIO', `${Math.round(value)} BP`),
+      // The clamped figure, not the raw drag: a readout that disagrees with the
+      // maths under it is the one thing a receipt may never do.
+      line('EXPENSE RATIO', `${Math.round(bp)} BP`),
       line('FEE / MO NOW', money((principal * er) / 12)),
       line('LOST TO FEES BY 65', money(drag.lost), true),
       line('SHARE OF OUTCOME', percent(drag.shareOfOutcome, 1)),
       line('YOU KEEP', moneyCompact(drag.withFee)),
     ],
-    // Index 0 is 3bp. Broad index territory, then actively-managed territory,
-    // then the funds that quietly take a quarter of the outcome.
-    blockTint: (index) => (index + 3 <= 20 ? 'accent' : index + 3 >= 75 ? 'loss' : 'plain'),
+    // Broad index territory, then actively-managed territory, then the funds
+    // that quietly take a quarter of the outcome.
+    blockTint: (position) => {
+      const blockBp = FEE_MIN_BP + position * FEE_STEP_BP
+      if (blockBp <= FEE_INDEX_BP) return 'accent'
+      return blockBp >= FEE_UGLY_BP ? 'loss' : 'plain'
+    },
   }
 }
 

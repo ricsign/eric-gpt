@@ -9,9 +9,15 @@
  * Note that "best" is not the same rule on every call, and the difference is
  * itself the lesson. On the employer match, at65 rises for the whole dial —
  * more invested is more invested — and the right play is the cheapest position
- * that still captures every employer dollar. On the Roth split the dial is flat
- * to the dollar and the right play is the cheapest position on the plateau.
- * Each call below names which rule applies to it and why.
+ * that still captures every employer dollar. Every other call is a plain argmax
+ * on at65. Each spec below names which rule applies to it.
+ *
+ * The second job of this file is the seam with registry.ts. Nothing in the type
+ * system ties a compute function to the dial it is dragged on, and `blockTint`
+ * is handed a step POSITION — so a call whose control steps in 3s while the
+ * tint assumes steps of 1 paints the wrong blocks, forever, silently. That is
+ * not a hypothetical: it shipped. `the specs describe the dials the player
+ * actually drags` and `tints the dial in the player's own units` catch it.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -29,8 +35,17 @@ import {
   withholding,
   timingMarket,
 } from './compute'
-import { DEFAULT_PROFILE, type CallOutcome, type ComputeFn, type Profile } from './types'
-import { futureValue, monthlyRate } from '../lib/finance'
+import {
+  DEFAULT_PROFILE,
+  judge,
+  resolveOptimal,
+  stepCount,
+  type CallOutcome,
+  type ComputeFn,
+  type Profile,
+} from './types'
+import { futureValue, monthlyRate, payOffDebt } from '../lib/finance'
+import { CALLS } from './registry'
 
 const P = DEFAULT_PROFILE
 
@@ -51,27 +66,59 @@ interface Spec {
   /**
    * How this call is scored.
    *  at65      — highest projection wins outright.
-   *  plateau   — highest projection, ties inside 0.05% broken by lowest cost.
    *  capture   — most benefit captured, ties broken by lowest cost.
    */
-  rule: 'at65' | 'plateau' | 'capture'
+  rule: 'at65' | 'capture'
+  /**
+   * What the control must look like at a given position on the dial, written in
+   * the units on the readout rather than in block indices. Stating it this way
+   * round is the whole point: an index-space expectation would have agreed with
+   * an index-space bug.
+   */
+  tint?: [value: number, expected: 'accent' | 'plain' | 'loss'][]
 }
 
 const SPECS: Spec[] = [
   // at65 climbs the whole dial; 6% is the cheapest place that takes every
   // matched dollar, and past it the employer contributes nothing more.
-  { name: 'employerMatch', fn: employerMatch, min: 0, max: 15, step: 1, optimal: 6, rule: 'capture' },
+  {
+    name: 'employerMatch', fn: employerMatch, min: 0, max: 15, step: 1, optimal: 6, rule: 'capture',
+    // The employer's money, and only the employer's money, is lit.
+    tint: [[0, 'plain'], [1, 'accent'], [6, 'accent'], [7, 'plain'], [15, 'plain']],
+  },
   { name: 'debtSplit', fn: debtSplit, min: 0, max: 500, step: 25, optimal: 0, rule: 'at65' },
-  { name: 'emergencyFund', fn: emergencyFund, min: 0, max: 12, step: 1, optimal: 5, rule: 'at65' },
-  { name: 'promoDeadline', fn: promoDeadline, min: 1, max: 24, step: 1, optimal: 12, rule: 'at65' },
+  {
+    name: 'emergencyFund', fn: emergencyFund, min: 0, max: 12, step: 1, optimal: 5, rule: 'at65',
+    tint: [[0, 'loss'], [2, 'loss'], [3, 'accent'], [6, 'accent'], [7, 'plain'], [12, 'plain']],
+  },
+  {
+    name: 'promoDeadline', fn: promoDeadline, min: 1, max: 24, step: 1, optimal: 12, rule: 'at65',
+    // The promo window is free and the block after it detonates.
+    tint: [[1, 'accent'], [12, 'accent'], [13, 'loss'], [24, 'loss']],
+  },
   { name: 'anchorOffer', fn: anchorOffer, min: 0, max: 20, step: 1, optimal: 8, rule: 'at65' },
   // The safe-harbour edge: the last point where no penalty is due and the
   // player is still holding their own money.
-  { name: 'withholding', fn: withholding, min: 60, max: 180, step: 5, optimal: 90, rule: 'at65' },
+  {
+    name: 'withholding', fn: withholding, min: 60, max: 180, step: 5, optimal: 90, rule: 'at65',
+    tint: [[60, 'loss'], [85, 'loss'], [90, 'accent'], [100, 'accent'], [105, 'plain'], [180, 'plain']],
+  },
   { name: 'repairOrReplace', fn: repairOrReplace, min: 0, max: 4000, step: 100, optimal: 2500, rule: 'at65' },
-  { name: 'feeDragCall', fn: feeDragCall, min: 3, max: 150, step: 1, optimal: 3, rule: 'at65' },
-  { name: 'rentVsBuy', fn: rentVsBuy, min: 0, max: 15, step: 1, optimal: 15, rule: 'at65' },
-  { name: 'timingMarket', fn: timingMarket, min: 0, max: 30, step: 1, optimal: 0, rule: 'at65' },
+  {
+    // The dial steps in 3bp, not 1bp. Getting this wrong here is what let the
+    // tint bug through the last time: the sweep tested 148 positions the player
+    // cannot reach and never tested the 50 they can.
+    name: 'feeDragCall', fn: feeDragCall, min: 3, max: 150, step: 3, optimal: 3, rule: 'at65',
+    tint: [[3, 'accent'], [18, 'accent'], [21, 'plain'], [72, 'plain'], [75, 'loss'], [150, 'loss']],
+  },
+  {
+    name: 'rentVsBuy', fn: rentVsBuy, min: 0, max: 15, step: 1, optimal: 15, rule: 'at65',
+    tint: [[0, 'loss'], [4, 'loss'], [5, 'accent'], [15, 'accent']],
+  },
+  {
+    name: 'timingMarket', fn: timingMarket, min: 0, max: 30, step: 1, optimal: 0, rule: 'at65',
+    tint: [[0, 'accent'], [1, 'loss'], [10, 'loss'], [11, 'plain'], [30, 'plain']],
+  },
 ]
 
 function sweep(spec: Spec, profile: Profile = P) {
@@ -93,11 +140,7 @@ describe('the declared optimal really is optimal', () => {
       best = rows.filter((r) => r.benefit >= top - 1e-6).sort((a, b) => a.cost - b.cost)[0].value
     } else {
       const top = Math.max(...rows.map((r) => r.at65))
-      const near =
-        spec.rule === 'plateau'
-          ? rows.filter((r) => r.at65 >= top - Math.abs(top) * 5e-4)
-          : rows.filter((r) => r.at65 >= top - 1e-6)
-      best = near.sort((a, b) => a.cost - b.cost)[0].value
+      best = rows.filter((r) => r.at65 >= top - 1e-6).sort((a, b) => a.cost - b.cost)[0].value
     }
 
     expect(best).toBe(spec.optimal)
@@ -361,11 +404,28 @@ describe('nothing breaks anywhere on any dial', () => {
     }
   })
 
-  it.each(SPECS)('$name tints every block it is asked about', (spec) => {
+  it.each(SPECS)('$name tints the dial in the player\'s own units', (spec) => {
     const o = spec.fn(spec.min, P)
-    if (!o.blockTint) return
+    if (!spec.tint) {
+      expect(o.blockTint, `${spec.name} grew a tint with no expectation to check it`).toBeUndefined()
+      return
+    }
+    expect(o.blockTint).toBeTypeOf('function')
+
     const n = Math.round((spec.max - spec.min) / spec.step) + 1
-    for (let i = 0; i < n; i++) expect(['accent', 'plain', 'loss']).toContain(o.blockTint(i))
+    for (let i = 0; i < n; i++) expect(['accent', 'plain', 'loss']).toContain(o.blockTint!(i))
+
+    // The assertions are written against the number on the readout, and the
+    // position is derived from it here. Asserting in position space is what made
+    // the old version of this test agree with a bug that was in position space.
+    for (const [value, expected] of spec.tint) {
+      const index = Math.round((value - spec.min) / spec.step)
+      expect(o.blockTint!(index), `${spec.name} @ ${value}`).toBe(expected)
+    }
+
+    // A tint that never uses more than one colour is decoration, not teaching.
+    const used = new Set(Array.from({ length: n }, (_, i) => o.blockTint!(i)))
+    expect(used.size, `${spec.name} paints the whole dial one colour`).toBeGreaterThan(1)
   })
 
   it('cost is money leaving the player, so it is never negative', () => {
@@ -398,11 +458,209 @@ describe('nothing breaks anywhere on any dial', () => {
   })
 
   it('every call is registered under the name it is keyed by', () => {
+    // The set equality is the assertion; iterating the map to check each key
+    // equals itself, which an earlier version did, asserts nothing at all.
     expect(Object.keys(COMPUTE).sort()).toEqual(SPECS.map((s) => s.name).sort())
-    for (const [key, fn] of Object.entries(COMPUTE)) {
-      expect(typeof fn).toBe('function')
-      expect(key).toBe(SPECS.find((s) => s.name === key)!.name)
+    for (const fn of Object.values(COMPUTE)) expect(fn).toBeTypeOf('function')
+  })
+})
+
+/* ========================================================================== */
+
+describe('the specs describe the dials the player actually drags', () => {
+  it('every spec matches the control on its call record', () => {
+    // `blockTint` is handed a block index, so every compute function encodes the
+    // geometry of its own control. Nothing in the type system enforces that, and
+    // the sweeps in this file are the only thing standing between a control that
+    // steps in 3s and a tint written for steps of 1. When registry.ts moves a
+    // dial, this fails first and the tint gets fixed with it.
+    for (const spec of SPECS) {
+      const call = CALLS.find((c) => c.compute === spec.name)
+      expect(call, `no call record uses ${spec.name}`).toBeDefined()
+      const v = call!.variable
+      expect(
+        { min: v.min, max: v.max, step: v.step },
+        `${spec.name}: the control moved and compute.ts has not been told`,
+      ).toEqual({ min: spec.min, max: spec.max, step: spec.step })
+      expect(positions(spec.min, spec.max, spec.step)).toHaveLength(stepCount(v))
     }
+  })
+
+  it('the best play under the maths is a play the record calls correct', () => {
+    // Age is fixed at 30 by onboarding; salary is a $15k-$400k log slider. That
+    // rectangle is every player the app can actually produce, so the optimum has
+    // to hold across all of it and not merely at the four profiles that are
+    // convenient to type out.
+    for (const spec of SPECS) {
+      const call = CALLS.find((c) => c.compute === spec.name)!
+      for (let salary = 15_000; salary <= 400_000; salary += 5_000) {
+        const profile: Profile = { salary, age: DEFAULT_PROFILE.age }
+        const rows = sweep(spec, profile)
+        const top = Math.max(...rows.map((r) => r.at65))
+
+        if (top - Math.min(...rows.map((r) => r.at65)) <= 1e-6) {
+          // A flat dial has no best play to check, so rather than skip it
+          // quietly, assert that it is the one call that is allowed to go flat
+          // and only where it is allowed to. See the standard-deduction test.
+          expect(`${spec.name} below $${salary}`).toBe(`withholding below $${salary}`)
+          expect(salary).toBeLessThan(17_000)
+          continue
+        }
+
+        const best = rows.filter((r) => r.at65 >= top - 1e-6).sort((a, b) => a.cost - b.cost)[0]
+        expect(
+          judge(best.value, call.optimal, profile),
+          `${spec.name} at $${salary}: the maths peaks at ${best.value}, the record claims ` +
+            JSON.stringify(resolveOptimal(call.optimal, profile)),
+        ).toBe('optimal')
+      }
+    }
+  })
+})
+
+/* ========================================================================== */
+
+describe('the closed forms agree with the slow maths they replaced', () => {
+  it('debt: the closed-form amortisation matches payOffDebt to the dollar', () => {
+    // monthsToClear/balanceAfter are the continuous version of the iterative
+    // schedule in lib/finance.ts, which is separately tested. If they ever drift
+    // apart, one of the two is wrong and the drag is the one nobody checks.
+    for (const [balance, apr, payment] of [
+      [4_200, 0.2499, 500],
+      [2_800, 0.1199, 500],
+      [4_200, 0.2499, 125],
+    ] as const) {
+      const iterative = payOffDebt({ balance, apr, monthlyPayment: payment })
+      // All $500 at one card is the single-card case, so debtSplit's first leg
+      // has to reproduce it: total paid is payment x months, whole or partial.
+      const months = -Math.log(1 - ((apr / 12) * balance) / payment) / Math.log(1 + apr / 12)
+      expect(Math.ceil(months)).toBe(iterative.months)
+
+      // The two can never agree exactly and should not be forced to: the
+      // schedule charges a whole final month of interest, the closed form stops
+      // part-way through it. The whole gap must fit inside that last month's
+      // interest, which is the tightest bound that is actually true.
+      const continuous = payment * months - balance
+      const lastMonth = payment * (apr / 12)
+      expect(continuous).toBeLessThan(iterative.totalInterest)
+      expect(iterative.totalInterest - continuous).toBeLessThan(lastMonth)
+    }
+  })
+
+  it('debt: sending everything to the 24.99% card reproduces its own schedule', () => {
+    const interest = Number(
+      debtSplit(0, P).breakdown.find((b) => b.label === 'INTEREST PAID')!.value.replace(/[$,]/g, ''),
+    )
+    // Phase one: $500 clears the expensive card while the cheap one accrues
+    // untouched. Phase two: the whole $500 falls on what is left of the cheap
+    // one. Walked month by month here, closed-form there.
+    const iH = 0.2499 / 12
+    const iL = 0.1199 / 12
+    const nH = -Math.log(1 - (iH * 4_200) / 500) / Math.log(1 + iH)
+    const grown = 2_800 * Math.pow(1 + iL, nH)
+    const nL = -Math.log(1 - (iL * grown) / 500) / Math.log(1 + iL)
+    const expected = (500 * nH - 4_200) + (grown - 2_800) + (500 * nL - grown)
+    expect(interest).toBeCloseTo(expected, 0)
+  })
+
+  it('promo: the retroactive bill matches a month-by-month deferred-interest run', () => {
+    // The clause is the entire call. If the closed form over-or-understates it,
+    // the cliff moves and the lesson moves with it.
+    for (const m of [13, 15, 18, 24]) {
+      const pay = 3_000 / m
+      const i = 0.2699 / 12
+      let balance = 3_000
+      let accrued = 0
+      for (let k = 0; k < 12; k++) {
+        accrued += balance * i
+        balance -= pay
+      }
+      let carried = balance + accrued
+      let after = 0
+      for (let k = 0; k < 600 && carried > 0.005; k++) {
+        const int = carried * i
+        after += int
+        carried = carried + int - Math.min(pay, carried + int)
+      }
+      const shown = Number(
+        promoDeadline(m, P)
+          .breakdown.find((b) => b.label === 'DEFERRED INTEREST')!
+          .value.replace(/[$,]/g, ''),
+      )
+      expect(shown, `${m} months`).toBeCloseTo(accrued + after, -1)
+    }
+  })
+
+  it('housing: the two geometric sums match a month-by-month simulation', () => {
+    // rentVsBuy is the most intricate closed form in the file — a mortgage
+    // balance, two geometric series and a mid-year settlement convention. This
+    // rebuilds it the dumb way and requires agreement inside 0.2%.
+    const HOME = 360_000
+    const i = 0.065 / 12
+    const g = Math.pow(1 + i, 360)
+    const payment = (HOME * 0.8 * i * g) / (g - 1)
+    const rm = monthlyRate(0.07)
+
+    for (const years of [1, 3, 5, 10, 15]) {
+      let owed = HOME * 0.8
+      let invested = HOME * 0.23
+      let rent = 2_160
+      let running = (0.015 * HOME) / 12
+      for (let m = 1; m <= years * 12; m++) {
+        owed = owed + owed * i - payment
+        invested = invested * (1 + rm) + (payment + running - rent)
+        if (m % 12 === 0) {
+          rent *= 1.03
+          running *= 1.03
+        }
+      }
+      const simulated = 0.94 * HOME * Math.pow(1.03, years) - owed - invested
+      // The minus sign is kept: whether buying is ahead is the answer, not a
+      // formatting detail, so the simulation has to agree on the sign too.
+      const shown = Number(
+        rentVsBuy(years, P)
+          .breakdown.find((b) => b.label === 'BUY MINUS RENT')!
+          .value.replace(/[$,]/g, ''),
+      )
+      expect(Math.sign(shown), `${years} years`).toBe(Math.sign(simulated))
+      // Relative, because the figure runs from four to six digits across the
+      // dial and a fixed dollar bound would be slack at one end and impossible
+      // at the other. The residual is the mid-year settlement convention.
+      expect(Math.abs(simulated / shown - 1), `${years} years`).toBeLessThan(0.002)
+    }
+  })
+})
+
+/* ========================================================================== */
+
+describe('the dial always has something in it', () => {
+  const spread = (spec: Spec, profile: Profile) => {
+    const rows = sweep(spec, profile).map((r) => r.at65)
+    return Math.max(...rows) - Math.min(...rows)
+  }
+
+  it.each(SPECS)('$name moves across the whole salary track', (spec) => {
+    // A call whose projection does not move as you drag is an article wearing a
+    // control. Checked at both ends of the slider, not only in the middle.
+    for (const salary of [20_000, 62_000, 150_000, 400_000]) {
+      expect(spread(spec, { salary, age: DEFAULT_PROFILE.age }), `$${salary}`).toBeGreaterThan(1)
+    }
+  })
+
+  it('withholding goes dead below the standard deduction, and that is not fixable here', () => {
+    // A single filer under the 2026 standard deduction owes no federal income
+    // tax, so there is genuinely no W-4 decision to make and every position on
+    // the dial is identical. The salary slider starts at $15,000, which is under
+    // that line — so the bottom $1,100 of the track produces a call with nothing
+    // in it. Inventing a liability to fill it would be a fabricated number on a
+    // receipt, which is worse; the fix is a salary floor or a fixed scenario pay
+    // on the card, and neither of those lives in this file. Pinned here so it is
+    // visible rather than discovered by a player.
+    const dead = { salary: 15_000, age: 30 }
+    expect(spread(SPECS[5], dead)).toBe(0)
+    expect(withholding(90, dead).breakdown.find((b) => b.label === 'TAX OWED')!.value).toBe('$0')
+    // The first salary that owes tax brings the dial back to life.
+    expect(spread(SPECS[5], { salary: 17_000, age: 30 })).toBeGreaterThan(0)
   })
 })
 

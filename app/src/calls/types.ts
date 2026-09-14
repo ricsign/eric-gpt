@@ -53,7 +53,13 @@ export interface CallOutcome {
    * blocks 1-6 fill accent (matched) and 7-15 fill white (unmatched), so the
    * player *sees* the match stop while their monthly cost keeps climbing.
    */
-  blockTint?: (index: number) => 'accent' | 'plain' | 'loss'
+  /**
+   * Fill colour for one step POSITION on the control: 0 is `variable.min`,
+   * 1 is one `step` above it, and so on. It is not the index of a drawn block —
+   * the bar draws at most fifteen of those however many steps a call has, and
+   * translates positions to them itself. Author against the values you know.
+   */
+  blockTint?: (position: number) => 'accent' | 'plain' | 'loss'
 }
 
 export type ComputeFn = (value: number, profile: Profile) => CallOutcome

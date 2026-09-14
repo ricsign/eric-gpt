@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  blockPositions,
   blockState,
+  blockTintFor,
   positionCount,
   positionToValue,
   stepValue,
@@ -274,5 +276,53 @@ describe('stepValue', () => {
 
   it('handles a non-finite current value by starting from min', () => {
     expect(stepValue(NaN, 1, 0, 15, 1)).toBe(1)
+  })
+})
+
+describe('tint is addressed by step position, not by drawn block', () => {
+  // The bar draws at most fifteen blocks however many steps a call has, and
+  // compute functions author their tints in step positions. Getting this
+  // translation wrong does not throw — it paints the boundary in the wrong
+  // place, which on a cliff call is the control teaching the opposite lesson.
+
+  it('covers every position exactly once across the bar', () => {
+    for (const positions of [2, 7, 15, 16, 24, 25, 41, 148]) {
+      const count = Math.min(15, positions)
+      const covered = new Set<number>()
+      for (let i = 0; i < count; i++) {
+        const [lo, hi] = blockPositions(i, count, positions)
+        expect(lo, `${positions}/${count} block ${i}`).toBeLessThanOrEqual(hi)
+        for (let p = lo; p <= hi; p++) covered.add(p)
+      }
+      // Every stop the player can reach is represented somewhere on the bar.
+      expect(covered.size, `positions=${positions}`).toBe(positions)
+    }
+  })
+
+  it('never paints a penalty position in a safe colour', () => {
+    // The promo call: months 1-12 free, 13-24 retroactive interest. Twenty-four
+    // positions drawn as fifteen blocks, so the boundary falls mid-block.
+    const positions = 24
+    const count = 15
+    const tint = (p: number) => (p < 12 ? 'accent' : 'loss') as 'accent' | 'loss'
+    const tints = Array.from({ length: count }, (_, i) => blockTintFor(i, count, positions, tint))
+    const firstLoss = tints.indexOf('loss')
+    // Half the range is free, so the boundary belongs near the middle of the
+    // bar — not at block 12 of 15, which is where the untranslated index put it.
+    expect(firstLoss).toBeGreaterThan(5)
+    expect(firstLoss).toBeLessThan(9)
+    // And no block after the boundary may claim to be free.
+    expect(tints.slice(firstLoss).every((t) => t === 'loss')).toBe(true)
+    for (let i = 0; i < count; i++) {
+      const [lo, hi] = blockPositions(i, count, positions)
+      const anyLoss = Array.from({ length: hi - lo + 1 }, (_, k) => tint(lo + k)).includes('loss')
+      if (anyLoss) expect(tints[i], `block ${i} spans a penalty position`).toBe('loss')
+    }
+  })
+
+  it('is the identity when a call has exactly as many steps as blocks', () => {
+    for (let i = 0; i < 15; i++) {
+      expect(blockPositions(i, 15, 15)).toEqual([i, i])
+    }
   })
 })

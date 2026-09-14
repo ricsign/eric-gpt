@@ -147,6 +147,62 @@ export function blockState(
   return blockIndex >= 0 && blockIndex < filled ? 'filled' : 'empty'
 }
 
+/**
+ * The step positions a single block stands for, inclusive.
+ *
+ * The bar draws at most fifteen blocks whatever the control's range, so on a
+ * call with twenty-five steps one block covers nearly two of them. Compute
+ * functions author their tints against step positions — "everything before
+ * month twelve is free" — which is the only unit they know, so the block index
+ * has to be translated before it reaches them. Without this the boundary lands
+ * wherever the ratio happens to put it: the promo call's free window was being
+ * painted across eighty percent of a bar that is half free.
+ *
+ * Returns `[lo, hi]` with `lo <= hi`. A block narrower than the gap between two
+ * positions collapses to the nearest single one.
+ */
+export function blockPositions(
+  blockIndex: number,
+  blockCount: number,
+  positions: number,
+): [number, number] {
+  const last = Math.max(0, positions - 1)
+  if (blockCount <= 0) return [0, 0]
+  const span = last / blockCount
+  const lo = Math.ceil(blockIndex * span)
+  const hi = Math.floor((blockIndex + 1) * span)
+  if (lo > hi) {
+    const near = Math.round((blockIndex + 0.5) * span)
+    return [Math.min(last, near), Math.min(last, near)]
+  }
+  return [Math.min(last, lo), Math.min(last, hi)]
+}
+
+/** Ranked worst-first, so a block spanning a boundary can be resolved. */
+const TINT_RANK = { loss: 0, plain: 1, accent: 2 } as const
+
+/**
+ * One tint for a block that may straddle a boundary: the worst of what it covers.
+ *
+ * A block half inside a penalty zone is drawn as penalty. The alternative is a
+ * control that paints part of a cliff in the safe colour, which is the one
+ * mistake a teaching control must never make.
+ */
+export function blockTintFor(
+  blockIndex: number,
+  blockCount: number,
+  positions: number,
+  tint: (position: number) => 'accent' | 'plain' | 'loss',
+): 'accent' | 'plain' | 'loss' {
+  const [lo, hi] = blockPositions(blockIndex, blockCount, positions)
+  let worst: 'accent' | 'plain' | 'loss' = 'accent'
+  for (let p = lo; p <= hi; p++) {
+    const t = tint(p)
+    if (TINT_RANK[t] < TINT_RANK[worst]) worst = t
+  }
+  return worst
+}
+
 /* -------------------------------------------------------------------------- */
 /* The control                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -159,8 +215,12 @@ export interface BlockBarProps {
   step: number
   /** Visual segment count. Independent of the number of steps. */
   blocks?: number
-  /** Per-block fill colour, so a call can teach through colour alone. */
-  tint?: (blockIndex: number) => 'accent' | 'plain' | 'loss'
+  /**
+   * Fill colour by STEP POSITION — 0 is `min`, not the index of a drawn block.
+   * The bar translates, because it draws fewer blocks than most calls have
+   * steps and only the call knows where its boundaries are.
+   */
+  tint?: (position: number) => 'accent' | 'plain' | 'loss'
   disabled?: boolean
   /** Accessible name. The screen's own caption, not a second one. */
   label: string
@@ -216,6 +276,9 @@ export function BlockBar({
   const emitted = useRef(value)
 
   const count = Math.max(1, Math.round(blocks))
+  // How many legal stops the control actually has, which is usually more than
+  // the number of blocks drawn for it.
+  const positions = positionCount(min, max, step)
 
   const commit = (next: number, tick: boolean) => {
     if (next === emitted.current) return
@@ -353,7 +416,7 @@ export function BlockBar({
             key={i}
             className="blockbar-block"
             data-state={blockState(i, count, value, min, max)}
-            data-tint={tint ? tint(i) : 'plain'}
+            data-tint={tint ? blockTintFor(i, count, positions, tint) : 'plain'}
           />
         ))}
       </div>
