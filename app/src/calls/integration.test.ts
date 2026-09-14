@@ -304,3 +304,30 @@ const DOING_VERBS = new Set([
   'set', 'sign', 'split', 'start', 'stop', 'switch', 'take', 'tell', 'work',
   'write',
 ])
+
+describe('nothing the maths renders speaks the old vocabulary', () => {
+  // The record's own strings are guarded above, but breakdown lines are built
+  // at runtime out of template literals, and one of them was emitting "126 BP"
+  // onto the reveal. It was invisible for a while only because an unrelated
+  // rule on the reveal happened to drop that row — a side effect, not a guard.
+  // This checks what a player can actually read, at every position of every
+  // dial, which is the only place the check is worth anything.
+  const BANNED = /\b(bps|bp|basis points?|safe harbou?r|overshot|optimal|the tab|expense ratio)\b/i
+
+  it.each(CALLS.map((c) => [c.id, c] as const))('question %i renders clean copy', (_id, call) => {
+    const compute = COMPUTE[call.compute]
+    for (const profile of PROFILES) {
+      for (let i = 0; i < stepCount(call.variable); i++) {
+        const value = call.variable.min + i * call.variable.step
+        for (const l of compute(value, profile).breakdown) {
+          const text = `${l.label} ${l.value}`
+          const hit = text.match(BANNED)
+          expect(
+            hit?.[0],
+            `question ${call.id} at ${value} (salary ${profile.salary}) renders "${text}"`,
+          ).toBeUndefined()
+        }
+      }
+    }
+  })
+})

@@ -33,47 +33,47 @@ import './Outcome.css'
 const WHY: Record<string, { mechanism: string; dollars?: true }> = {
   employerMatch: {
     mechanism:
-      'Your boss adds fifty cents for every dollar you put in, up to 6% of your pay, so below 6% part of that offer simply stays with them.',
+      'Your boss adds 50 cents for every dollar you put in, up to 6% of your pay. Below 6%, part of that offer just stays with them.',
   },
   debtSplit: {
     dollars: true,
     mechanism:
-      'Both cards charge interest every month on whatever is left, so the same dollar clears more than twice as much interest on the 24.99% card as on the 11.99% one.',
+      'Both cards charge interest on whatever is left. A dollar clears more than twice as much interest on the 24.99% card as on the 11.99% one.',
   },
   emergencyFund: {
     mechanism:
-      'Cash earns about 4% while investing earns about 7%, so every month of bills you hold costs you the difference — and holding too little means putting the next broken thing on a 24.99% card.',
+      'Cash earns about 4%; investing earns about 7%. Every month of bills you hold costs you that gap. Hold too little and the next broken thing goes on a card at 24.99%.',
   },
   promoDeadline: {
     mechanism:
-      'Nothing is charged while the deal runs, but one month past the deadline and 26.99% is added back to day one on the whole $3,000.',
+      'Nothing is charged while the deal runs. One month late and 26.99% is added back to day one, on the whole $3,000.',
   },
   anchorOffer: {
     mechanism:
-      'Every raise after this one is a percentage of the number you agree to now, so a few points follow you for the rest of your career, while the chance of the offer being pulled only bites once the ask gets big.',
+      'Every raise after this one is a percentage of the number you agree to now. A few points follow you for a whole career. The risk of losing the offer only bites once the ask gets big.',
   },
   withholding: {
     dollars: true,
     mechanism:
-      'Your tax bill is the same either way, so a big refund only means you handed the money over early and got it back with nothing added — and you can owe up to a tenth of the bill before the IRS charges interest.',
+      'Your tax bill is the same either way. A big refund just means you paid early and got it back with nothing added. You can owe up to a tenth of the bill before the IRS charges interest.',
   },
   repairOrReplace: {
     dollars: true,
     mechanism:
-      'The first few hundred dollars buy most of the months a repair adds, so past about half of what the car is worth you are paying more than the newer car would cost over the same five years.',
+      'The first few hundred dollars buy most of the life left in an old car. After that you are paying more for less, and a newer one costs $441 a month.',
   },
   feeDragCall: {
     dollars: true,
     mechanism:
-      'The fee comes out every year on everything you hold, growth included, so a small difference in the yearly cost takes a visible slice of what you end up with.',
+      'The fee comes out every year, and so does the growth it would have earned. Over a working life that compounds into real money.',
   },
   rentVsBuy: {
     mechanism:
-      'Buying and then selling the house costs about 9% of the price, and it takes roughly five years of paying down the loan and prices creeping up to earn that back.',
+      'Buying and selling costs about 9% of the price. You need enough years of owning for the house to earn that back before you move.',
   },
   timingMarket: {
     mechanism:
-      'The best days land in the middle of the worst weeks, so stepping out to dodge the drop usually means missing the bounce that pays for it.',
+      'The best days cluster right after the worst ones. Sell when it drops and you are usually out of the market on the days that pay for the rest.',
   },
 }
 
@@ -120,8 +120,13 @@ export function Outcome({
   personalised: boolean
 }) {
   const compute = COMPUTE[call.compute]
-  const why = WHY[call.compute]
-  const dollars = why.dollars === true
+  // An eleventh question added without a matching entry here would otherwise
+  // read `.dollars` off undefined and white-screen the reveal — the screen a
+  // player reaches only after committing an answer, so the crash would land
+  // at the worst possible moment. A missing mechanism sentence is a gap in
+  // the copy; it must not be a gap in the app.
+  const why = WHY[call.compute] as (typeof WHY)[string] | undefined
+  const dollars = why?.dollars === true
   const unit = call.variable.unit
 
   const verdict = judge(value, call.optimal, profile)
@@ -185,7 +190,10 @@ export function Outcome({
 
       <section className="outcome-why">
         <p className="outcome-kicker data-sm">Why</p>
-        <p className="outcome-mechanism">{why.mechanism}</p>
+        {/* The table below carries the argument on its own, so a question
+            without a mechanism sentence loses an explanation rather than a
+            screen. */}
+        {why && <p className="outcome-mechanism">{why.mechanism}</p>}
 
         <table className="outcome-table">
           <caption className="visually-hidden">

@@ -96,6 +96,8 @@ function Dial({
   const [dragging, setDragging] = useState(false)
   const trackRef = useRef<HTMLDivElement>(null)
   const lastTick = useRef(value)
+  /** The most recent value handed upward, which the prop can lag behind. */
+  const lastEmitted = useRef(value)
 
   const lnMin = Math.log(min)
   const lnSpan = Math.log(max) - lnMin
@@ -117,7 +119,13 @@ function Dial({
   }
 
   const commit = (next: number) => {
-    if (next === value) return
+    // Compared against what was last emitted, not against the prop. pointermove
+    // is a continuous-priority event, so React may not have re-rendered with
+    // the previous value by the time the next move arrives: gating on a stale
+    // prop lets a move through that the parent then overwrites, and the dial
+    // settles on a number the finger never ended on.
+    if (next === lastEmitted.current) return
+    lastEmitted.current = next
     // One tick per step crossed, not per pointermove event. A drag across the
     // track fires dozens of moves, and ticking on each one is a continuous
     // buzz rather than the feel of counting past notches.
@@ -179,6 +187,10 @@ function Dial({
         aria-valuetext={`${format(value)} ${caption}`}
         onKeyDown={onKeyDown}
         onPointerDown={(e) => {
+          // A second finger, or a right mouse button, must not drive the dial:
+          // two pointers fighting over one value settle on a number nobody
+          // chose. The question control already refuses them.
+          if (!e.isPrimary || e.button !== 0) return
           // The bar keeps the pointer, so a thumb that slides off it — or off
           // the screen — keeps driving the value instead of dropping the drag.
           e.currentTarget.setPointerCapture(e.pointerId)
@@ -186,7 +198,7 @@ function Dial({
           setFromPointer(e.clientX)
         }}
         onPointerMove={(e) => {
-          if (!dragging) return
+          if (!dragging || !e.isPrimary) return
           if (e.cancelable) e.preventDefault()
           setFromPointer(e.clientX)
         }}
@@ -240,8 +252,8 @@ export function Salary({
       <div className="salary-body scroll">
         <h1 className="salary-q">
           {untouched
-            ? `Those figures were on ${money(initial.salary)}. Make them yours?`
-            : `Your figures are on ${money(initial.salary)}. Change them?`}
+            ? 'Two numbers, and every figure becomes yours.'
+            : `Your figures run on ${money(initial.salary)}. Change them?`}
         </h1>
 
         <section className="salary-field">

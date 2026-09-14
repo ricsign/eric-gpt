@@ -172,8 +172,17 @@ export function answerText(answer: Answer, v: CallVariable): string {
  * Money captions open with the word "dollars" because the dial prints a bare
  * number above them. The card prints `$3`, so leaving the word in would produce
  * "$3, dollars a year per $10,000" — the unit said twice, which reads as a typo.
+ *
+ * One dial crosses zero, and its caption is written for the side it usually
+ * lands on. The refund question captions "back at tax time", which is true of
+ * a refund and a contradiction of a bill: the right answer there is to owe a
+ * little, so the card was printing "owe $500, back at tax time". A caption
+ * that cannot survive the answer is dropped rather than reworded, because the
+ * phrase "owe $500" already says everything the caption was there to say.
  */
-export function answerNote(v: CallVariable): string {
+export function answerNote(v: CallVariable, answer?: Answer): string {
+  const lowest = typeof answer === 'number' ? answer : answer?.min
+  if (isMoneyDial(v) && lowest !== undefined && lowest < 0) return ''
   return isMoneyDial(v) ? v.label.replace(/^dollars\s+/i, '') : v.label
 }
 

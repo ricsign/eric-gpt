@@ -711,7 +711,7 @@ export const feeDragCall: ComputeFn = (value, profile) => {
     breakdown: [
       // The clamped figure, not the raw drag: a readout that disagrees with the
       // maths under it is the one thing a receipt may never do.
-      line('EXPENSE RATIO', `${Math.round(bp)} BP`),
+      line('THE FUND CHARGES', `${money(Math.round(bp))} a year per $10,000`),
       line('FEE / MO NOW', money((principal * er) / 12)),
       line('LOST TO FEES BY 65', money(drag.lost), true),
       line('SHARE OF OUTCOME', percent(drag.shareOfOutcome, 1)),

@@ -50,19 +50,24 @@ export function ReceiptScreen({
   const [withGuess, setWithGuess] = useState(false)
 
   const input: NapkinInput = useMemo(
-    () => ({
+    () => {
+      // Resolved once: the phrase and the caption have to be describing the
+      // same answer, or the card can say "owe $500, back at tax time".
+      const best = resolveOptimal(call.optimal, profile)
+      return {
       questionNo: callNo,
       date: formatCallDate(day),
       scene: call.title,
       question: call.question,
       // The profile is resolved here and never handed to the card: only the
       // answer crosses, so nothing downstream can print anyone's pay.
-      answer: answerText(resolveOptimal(call.optimal, profile), call.variable),
-      note: answerNote(call.variable),
+      answer: answerText(best, call.variable),
+      note: answerNote(call.variable, best),
       rule: call.rule,
       givens: sharedFacts(call.fixed),
       guess: withGuess ? dialText(value, call.variable) : undefined,
-    }),
+      }
+    },
     [call, callNo, value, profile, day, withGuess],
   )
 

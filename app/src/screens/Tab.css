@@ -93,11 +93,14 @@
   border-radius: var(--r);
 }
 
-/* Unreached rows stay legible. Fading a question to nothing would leave most
-   of the page as grey bars on the first day, which is the state the reader is
-   in for longest. */
-.tab-item:not([data-answered]) {
-  opacity: 0.55;
+/* Unreached rows stay legible, and that means dimming them exactly once.
+   A blanket opacity here multiplied with the already-faded --fg-3 on the
+   number and the waiting label, taking them to about 0.18 alpha on a near
+   black ground — invisible, on the state the reader is in for longest and on
+   the rows that are the whole reason the set reads as finite. The row is
+   dimmed by choosing colours, so nothing fades twice. */
+.tab-item:not([data-answered]) .tab-q-t {
+  color: var(--fg-2);
 }
 
 .tab-q {
