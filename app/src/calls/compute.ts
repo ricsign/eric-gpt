@@ -513,45 +513,73 @@ const DWELL = 9.5 / 12
 const SAFE_HARBOR = 0.9
 const IRS_RATE = FACTS.irsUnderpayment.value
 
-export const withholding: ComputeFn = (value, profile) => {
-  const share = Math.max(0, value) / 100
-  const owed = federalTax(Math.max(0, profile.salary - STD_DED))
-  const paid = owed * share
-  const gap = paid - owed
+/** Refund dollars the dial can reach, and the grid it snaps to. */
+export const REFUND_MIN = -2_000
+export const REFUND_STEP = 250
 
-  // Over-withholding costs the interest the money would have earned. Under-
-  // withholding earns exactly that interest, and past the safe harbour pays it
-  // back several times over at the IRS rate.
-  const held = Math.abs(gap) * CASH * DWELL
-  const shortfall = Math.max(0, -gap)
-  const charged = share < SAFE_HARBOR ? shortfall * IRS_RATE * DWELL : 0
-  const yearly = gap >= 0 ? -held : held - charged
+/**
+ * How much you may still owe in April before the IRS starts charging interest.
+ *
+ * IRC 6654's safe harbour is 90% of the year's tax, so the allowance is the
+ * other tenth. It scales with the bill, which is why the best answer on this
+ * call is not one number for everyone: someone earning $28,000 has almost no
+ * room and should aim to break even, while a high earner can comfortably owe
+ * four figures. Exported because the call record's optimum is derived from it,
+ * and a second copy of this rule in registry.ts is a drift bug waiting to
+ * happen.
+ */
+export function underpayAllowance(profile: Profile): number {
+  return federalTax(Math.max(0, profile.salary - STD_DED)) * (1 - SAFE_HARBOR)
+}
+
+/** The allowance as a refund position the dial can actually stop on. */
+export function bestRefund(profile: Profile): number {
+  const snapped = Math.floor(underpayAllowance(profile) / REFUND_STEP) * REFUND_STEP
+  const best = Math.max(REFUND_MIN, -snapped)
+  // Negating zero yields -0, which is not the value the dial reports at that
+  // position and fails an Object.is comparison against it.
+  return best === 0 ? 0 : best
+}
+
+export const withholding: ComputeFn = (value, profile) => {
+  // The dial is the April refund in dollars. Negative means you owe.
+  const refund = value
+  const owed = federalTax(Math.max(0, profile.salary - STD_DED))
+  const allowance = underpayAllowance(profile)
+
+  const over = Math.max(0, refund)
+  const shortfall = Math.max(0, -refund)
+
+  // A refund is interest you gave up; owing is interest you kept. Past the
+  // safe harbour the IRS charges more than savings pay, which is the cliff.
+  const gaveUp = over * CASH * DWELL
+  const kept = shortfall * CASH * DWELL
+  const charged = shortfall > allowance ? shortfall * IRS_RATE * DWELL : 0
+  const yearly = kept - charged - gaveUp
 
   const at65 = fvAnnuity(yearly / 12, monthsTo65(profile))
 
   return {
-    // What the decision costs in a year, as a monthly figure like every other
-    // call. A player who lands on the answer is spending nothing.
     cost: Math.max(0, -yearly) / 12,
     benefit: Math.max(0, yearly),
     at65,
     breakdown: [
-      line('TAX OWED', money(owed)),
-      line('WITHHELD', money(paid)),
-      line(
-        gap >= 0 ? 'REFUND IN APRIL' : 'OWED IN APRIL',
-        money(Math.abs(gap)),
-        true,
-      ),
-      ...(charged > 0 ? [line('IRS INTEREST', money(charged))] : []),
-      line('AT 65', moneyCompact(at65)),
+      line('YOUR TAX BILL', money(owed)),
+      // The play itself, unemphasised: the sign lives in the label, because
+      // "-$2,000 owed" is a double negative that reads as a refund.
+      line(refund >= 0 ? 'BACK IN APRIL' : 'YOU OWE IN APRIL', money(Math.abs(refund))),
+      ...(charged > 0 ? [line('IRS CHARGES YOU', money(charged))] : []),
+      // The punchline is what the choice costs, not what the choice was — and
+      // at the right answer it is zero, which is the whole point of the call.
+      line('COSTS YOU A YEAR', money(Math.max(0, -yearly)), true),
     ],
-    // Index 0 is 60%. Everything below the safe harbour is a penalty zone;
-    // everything above par is an interest-free loan to the Treasury.
-    blockTint: (index) => {
-      const pct = 60 + index * 5
-      if (pct < SAFE_HARBOR * 100) return 'loss'
-      if (pct <= 100) return 'accent'
+    // Position 0 is the largest amount you can owe. Everything past the safe
+    // harbour is a penalty; the sliver between it and breaking even is the
+    // answer; every dollar of refund above that is a loan to the Treasury.
+    blockTint: (position) => {
+      const at = REFUND_MIN + position * REFUND_STEP
+      if (-at > allowance) return 'loss'
+      if (at <= 0) return 'accent'
       return 'plain'
     },
   }
@@ -900,7 +928,10 @@ export const SCENARIO: Record<string, number[]> = {
   anchorOffer: [RAISE * 100],
   withholding: [SAFE_HARBOR * 100],
   repairOrReplace: [CAR_VALUE, REPLACEMENT_PRICE, REPLACEMENT_PAYMENT, REPLACEMENT_TERM],
-  feeDragCall: [10, NOMINAL * 100],
+  // 10_000 is the basis the dial is quoted against: 'dollars a year per
+  // $10,000 invested' is one basis point, in the unit a person can check
+  // against their own statement.
+  feeDragCall: [10, NOMINAL * 100, 10_000],
   rentVsBuy: [HOME, MORT_APR * 100, RENT_MONTHLY, (CLOSING_SHARE + SELL_COST) * 100],
   timingMarket: [10, NOMINAL * 100, RETIRE_AT],
 }

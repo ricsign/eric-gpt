@@ -327,11 +327,13 @@ describe('the receipt states the play exactly once', () => {
             `call ${call.id} at ${value}: ${stating.map((l) => l.label).join(' / ')}`,
           ).not.toContain('YOUR PLAY')
         }
-        // Whatever else it says, it has to say what was chosen.
-        // Compared with the thousands separators stripped: the play is written
-        // "$3,200" on the receipt and 3200 in the record.
+        // Whatever else it says, it has to say what was chosen. Compared with
+        // the thousands separators stripped, and on magnitude only: a dial that
+        // runs through zero carries its sign in the label — the refund call
+        // prints "YOU OWE IN APRIL $2,000", because "-$2,000 owed" is a double
+        // negative that reads as a refund.
         expect(
-          lines.some((l) => l.value.replace(/,/g, '').includes(String(value))),
+          lines.some((l) => l.value.replace(/,/g, '').includes(String(Math.abs(value)))),
           `call ${call.id} at ${value} never states the play`,
         ).toBe(true)
       }
@@ -496,8 +498,10 @@ describe('every receipt the product can produce', () => {
       const lines = receiptLines(input)
       expect(lines.length, `call ${input.callNo} at ${input.value}`).toBeGreaterThan(0)
       expect(lines.length).toBeLessThanOrEqual(MAX_LINES)
+      // Magnitude only: a dial running through zero puts its sign in the
+      // label, so the refund call states -2000 as "YOU OWE IN APRIL $2,000".
       expect(
-        lines.some((l) => l.value.replace(/,/g, '').includes(String(input.value))),
+        lines.some((l) => l.value.replace(/,/g, '').includes(String(Math.abs(input.value)))),
         `call ${input.callNo} at ${input.value} never states the play`,
       ).toBe(true)
       expect(receiptText(input).split('\n')).toHaveLength(5)

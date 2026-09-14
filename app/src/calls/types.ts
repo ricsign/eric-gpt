@@ -99,7 +99,25 @@ export interface Call {
   /** Monotonic. Also the deep-link path: /142 */
   id: number
   /** Maximum 12 words. Three lines of display type. */
+  /**
+   * The scene, in the player's life. One sentence, present tense, no jargon.
+   * It sets up the question; it is not the question.
+   */
   title: string
+  /**
+   * The question the dial answers, in the second person and ending in a
+   * question mark. This is the line that makes the screen legible: without it
+   * a stranger sees a headline, a bar, and a number, and has to infer what is
+   * being asked of them. Authoring rule: it must be answerable by moving this
+   * call's dial and by nothing else.
+   */
+  question: string
+  /**
+   * The one thing to do about it this week, written as an instruction a person
+   * can finish in an evening. This is what the player actually walks away
+   * with — the rule is the idea, the action is the errand.
+   */
+  action: string
   domain: Domain
   variable: CallVariable
   fixed: CallFact[]

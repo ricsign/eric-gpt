@@ -33,6 +33,8 @@ import {
   rentVsBuy,
   repairOrReplace,
   withholding,
+  bestRefund,
+  underpayAllowance,
   timingMarket,
 } from './compute'
 import {
@@ -97,11 +99,13 @@ const SPECS: Spec[] = [
     tint: [[1, 'accent'], [12, 'accent'], [13, 'loss'], [24, 'loss']],
   },
   { name: 'anchorOffer', fn: anchorOffer, min: 0, max: 20, step: 1, optimal: 8, rule: 'at65' },
-  // The safe-harbour edge: the last point where no penalty is due and the
-  // player is still holding their own money.
+  // The safe-harbour edge, in the dollars a person actually sees in April:
+  // owe as much as the IRS lets you owe for free, and not a dollar more.
+  // The optimum scales with the bill, so it is derived rather than pinned.
   {
-    name: 'withholding', fn: withholding, min: 60, max: 180, step: 5, optimal: 90, rule: 'at65',
-    tint: [[60, 'loss'], [85, 'loss'], [90, 'accent'], [100, 'accent'], [105, 'plain'], [180, 'plain']],
+    name: 'withholding', fn: withholding, min: -2_000, max: 8_000, step: 250,
+    optimal: bestRefund(P), rule: 'at65',
+    tint: [[-2_000, 'loss'], [-1_000, 'loss'], [-500, 'accent'], [0, 'accent'], [250, 'plain'], [8_000, 'plain']],
   },
   { name: 'repairOrReplace', fn: repairOrReplace, min: 0, max: 4000, step: 100, optimal: 2500, rule: 'at65' },
   {
@@ -219,67 +223,70 @@ describe('shape', () => {
     expect(rows[0].cost).toBe(0)
   })
 
-  it('withholding: a cliff below the safe harbour, a slope above par', () => {
+  it('withholding: a penalty cliff on one side, a slow leak on the other', () => {
     const rows = sweep(SPECS[5])
-    const at = (pct: number) => rows.find((r) => r.value === pct)!
-    // Every step up to the safe harbour is an improvement, because each one
-    // shrinks a shortfall that is accruing interest at the IRS rate.
-    for (const pct of [65, 70, 75, 80, 85, 90]) {
-      expect(at(pct).at65, `${pct}%`).toBeGreaterThan(at(pct - 5).at65)
+    const at = (v: number) => rows.find((r) => r.value === v)!.at65
+    const best = bestRefund(P)
+    // Owing more than the IRS allows costs more than the money earns, so every
+    // step deeper into the penalty is worse.
+    for (const v of [-2_000, -1_500, -1_000]) {
+      expect(at(v), String(v)).toBeLessThan(at(best))
     }
-    // Past it, every extra dollar is lent to the Treasury for free.
-    for (const pct of [95, 100, 120, 150, 180]) {
-      expect(at(pct).at65, `${pct}%`).toBeLessThan(at(90).at65)
+    // Every dollar of refund above breaking even is lent to the Treasury free.
+    for (let v = 250; v <= 8_000; v += 250) {
+      expect(at(v), String(v)).toBeLessThan(at(v - 250))
     }
-    for (let i = rows.findIndex((r) => r.value === 100) + 1; i < rows.length; i++) {
-      expect(rows[i].at65).toBeLessThan(rows[i - 1].at65)
-    }
+    // And the answer beats both ends.
+    expect(at(best)).toBeGreaterThan(at(8_000))
+    expect(at(best)).toBeGreaterThan(at(-2_000))
   })
 
   it('withholding: crossing the safe harbour is a step, not a nudge', () => {
     const rows = sweep(SPECS[5])
-    const at = (pct: number) => rows.find((r) => r.value === pct)!.at65
-    // 85 -> 90 clears a penalty as well as closing a gap; 90 -> 95 only gives
-    // money away. The first move has to be worth much more than the second.
-    const clearing = at(90) - at(85)
-    const giving = at(90) - at(95)
-    expect(clearing).toBeGreaterThan(giving * 3)
+    const at = (v: number) => rows.find((r) => r.value === v)!.at65
+    const best = bestRefund(P)
+    // One step past the allowance turns interest earned into interest charged
+    // at nearly twice the rate; one step the other way only gives up savings
+    // interest. The cliff has to be the bigger move or the lesson is invisible.
+    const cliff = at(best) - at(best - 250)
+    const leak = at(best) - at(best + 250)
+    expect(cliff).toBeGreaterThan(leak * 2)
   })
 
-  it('withholding: the answer is 90% for everyone, because it is a statute', () => {
-    // The one call in the set whose optimum cannot move with the player. What
-    // moves is the cost of being wrong, which is why the dial is still worth
-    // dragging on any salary.
+  it('withholding: the right refund scales with the bill, because the rule does', () => {
+    // The one optimum in the set that is a statute rather than a projection.
+    // It is a tenth of the tax owed, so it genuinely differs by earner — and
+    // the low earner with no room should be aiming to break even.
     const peak = (profile: Profile) => {
       const rows = sweep(SPECS[5], profile)
       const top = Math.max(...rows.map((r) => r.at65))
       return rows.find((r) => r.at65 === top)!.value
     }
     for (const profile of [
-      { salary: 20_000, age: 22 },
+      { salary: 28_000, age: 24 },
       P,
       { salary: 150_000, age: 30 },
       { salary: 420_000, age: 58 },
     ]) {
-      expect(peak(profile), `salary ${profile.salary}`).toBe(90)
+      expect(peak(profile), 'salary ' + profile.salary).toBe(bestRefund(profile))
+      expect(bestRefund(profile)).toBeLessThanOrEqual(0)
     }
-    // Being wrong at $150k costs more than being wrong at $20k.
-    const missBy = (profile: Profile) => {
-      const rows = sweep(SPECS[5], profile)
-      const at = (pct: number) => rows.find((r) => r.value === pct)!.at65
-      return at(90) - at(180)
-    }
-    expect(missBy({ salary: 150_000, age: 30 })).toBeGreaterThan(missBy({ salary: 20_000, age: 30 }))
+    // A bigger bill buys more room to owe.
+    expect(bestRefund({ salary: 150_000, age: 30 })).toBeLessThan(bestRefund({ salary: 28_000, age: 24 }))
+    expect(underpayAllowance(P)).toBeGreaterThan(0)
   })
 
-  it('withholding: the tax owed never moves, only who is holding it', () => {
+  it('withholding: the tax bill never moves, only who is holding the money', () => {
     const owed = (v: number) =>
-      withholding(v, P).breakdown.find((b) => b.label === 'TAX OWED')!.value
-    // The dial is a W-4, not a tax cut. If this ever stops being true the call
-    // is teaching the opposite of its own rule.
-    expect(new Set([60, 90, 100, 140, 180].map(owed)).size).toBe(1)
-    expect(withholding(90, P).breakdown.some((b) => b.label === 'IRS INTEREST')).toBe(false)
-    expect(withholding(60, P).breakdown.some((b) => b.label === 'IRS INTEREST')).toBe(true)
+      withholding(v, P).breakdown.find((b) => b.label === 'YOUR TAX BILL')!.value
+    // The dial is a W-4, not a tax cut. If this stops being true the call is
+    // teaching the opposite of its own rule.
+    expect(new Set([-2_000, 0, 3_000, 8_000].map(owed)).size).toBe(1)
+    expect(withholding(bestRefund(P), P).breakdown.some((b) => b.label === 'IRS CHARGES YOU')).toBe(false)
+    expect(withholding(-2_000, P).breakdown.some((b) => b.label === 'IRS CHARGES YOU')).toBe(true)
+    // Owing reads as owing, and a refund reads as a refund.
+    expect(withholding(-500, P).breakdown.some((b) => b.label === 'YOU OWE IN APRIL')).toBe(true)
+    expect(withholding(3_000, P).breakdown.some((b) => b.label === 'BACK IN APRIL')).toBe(true)
   })
 
   it('repair or replace: diminishing life bought, one minimum', () => {
@@ -647,20 +654,17 @@ describe('the dial always has something in it', () => {
     }
   })
 
-  it('withholding goes dead below the standard deduction, and that is not fixable here', () => {
-    // A single filer under the 2026 standard deduction owes no federal income
-    // tax, so there is genuinely no W-4 decision to make and every position on
-    // the dial is identical. The salary slider starts at $15,000, which is under
-    // that line — so the bottom $1,100 of the track produces a call with nothing
-    // in it. Inventing a liability to fill it would be a fabricated number on a
-    // receipt, which is worse; the fix is a salary floor or a fixed scenario pay
-    // on the card, and neither of those lives in this file. Pinned here so it is
-    // visible rather than discovered by a player.
+  it('withholding still has an answer below the standard deduction', () => {
+    // The old percentage dial went completely flat here: a single filer under
+    // the standard deduction owes nothing, so every position was identical and
+    // the bottom of the salary track produced a call with nothing in it.
+    // Asking for the refund in dollars fixes that on its own — owing money you
+    // do not owe still costs you interest, and overpaying still gives up
+    // savings interest, so breaking even is a real answer rather than a tie.
     const dead = { salary: 15_000, age: 30 }
-    expect(spread(SPECS[5], dead)).toBe(0)
-    expect(withholding(90, dead).breakdown.find((b) => b.label === 'TAX OWED')!.value).toBe('$0')
-    // The first salary that owes tax brings the dial back to life.
-    expect(spread(SPECS[5], { salary: 17_000, age: 30 })).toBeGreaterThan(0)
+    expect(withholding(0, dead).breakdown.find((b) => b.label === 'YOUR TAX BILL')!.value).toBe('$0')
+    expect(spread(SPECS[5], dead)).toBeGreaterThan(0)
+    expect(bestRefund(dead)).toBe(0)
   })
 })
 

@@ -305,7 +305,12 @@ function statesPlay(line: BreakdownLine, value: number): boolean {
   // match call is the most consequential answer available.
   if (value === 0) return false
   const first = line.value.match(/-?\d[\d,]*(?:\.\d+)?/)
-  return first !== null && Number(first[0].replace(/,/g, '')) === value
+  if (first === null) return false
+  // Magnitude only. A dial that runs through zero carries its sign in the
+  // label — the refund call prints "YOU OWE IN APRIL $2,000" rather than
+  // "-$2,000", because a negative owing reads as a refund. Comparing signed
+  // would miss that and print the same fact twice under two labels.
+  return Math.abs(Number(first[0].replace(/,/g, ''))) === Math.abs(value)
 }
 
 /* ---- Plain text ---------------------------------------------------------------
