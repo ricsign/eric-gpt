@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { CALLS, callById, callCount } from './registry'
-import { judge, stepCount } from './types'
+import { DEFAULT_PROFILE, judge, resolveOptimal, stepCount, type Profile } from './types'
+
+/**
+ * An optimum may depend on the player's profile, so every record-shape
+ * assertion has to hold for the whole spread of players, not just the default.
+ */
+const PROFILES: Profile[] = [
+  { salary: 28_000, age: 24 },
+  DEFAULT_PROFILE,
+  { salary: 145_000, age: 41 },
+  { salary: 320_000, age: 55 },
+]
 
 /**
  * These tests guard the invariants that fail *silently*.
@@ -19,7 +30,7 @@ const COMPUTE_FNS = [
   'emergencyFund',
   'promoDeadline',
   'anchorOffer',
-  'rothSplit',
+  'withholding',
   'repairOrReplace',
   'feeDragCall',
   'rentVsBuy',
@@ -39,7 +50,7 @@ const IMPERATIVE_VERBS = new Set([
   'go', 'hold', 'ignore', 'keep', 'kill', 'know', 'leave', 'let', 'lock', 'look',
   'make', 'move', 'name', 'never', 'open', 'pay', 'put', 'read', 'refuse', 'rent',
   'save', 'sell', 'set', 'skip', 'split', 'start', 'stay', 'stop', 'take', 'treat',
-  'use', 'wait', 'walk', 'want', 'watch',
+  'owe', 'use', 'wait', 'walk', 'want', 'watch',
 ])
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean)
@@ -129,20 +140,31 @@ describe.each(CALLS.map((c) => [c.id, c] as const))('call %i', (_id, call) => {
     expect(start).toBeGreaterThanOrEqual(min)
     expect(start).toBeLessThanOrEqual(max)
     expect((start - min) % step).toBe(0)
-    // The whole product is the gesture. Starting on the optimum removes it.
-    expect(judge(start, call.optimal), 'start is the optimal answer').not.toBe('optimal')
+    // The whole product is the gesture. Starting on the optimum removes it —
+    // for every player, not just the median one.
+    for (const profile of PROFILES) {
+      expect(
+        judge(start, call.optimal, profile),
+        `start is the optimal answer at salary ${profile.salary}`,
+      ).not.toBe('optimal')
+    }
   })
 
   it('puts the optimum inside the range the player can actually reach', () => {
     const { min, max, step } = call.variable
-    const bounds = typeof call.optimal === 'number' ? [call.optimal] : [call.optimal.min, call.optimal.max]
-    for (const b of bounds) {
-      expect(b).toBeGreaterThanOrEqual(min)
-      expect(b).toBeLessThanOrEqual(max)
-      expect((b - min) % step).toBe(0)
-    }
-    if (typeof call.optimal !== 'number') {
-      expect(call.optimal.min).toBeLessThan(call.optimal.max)
+    for (const profile of PROFILES) {
+      const optimal = resolveOptimal(call.optimal, profile)
+      const bounds = typeof optimal === 'number' ? [optimal] : [optimal.min, optimal.max]
+      for (const b of bounds) {
+        expect(b, `salary ${profile.salary}`).toBeGreaterThanOrEqual(min)
+        expect(b, `salary ${profile.salary}`).toBeLessThanOrEqual(max)
+        // An optimum off the step grid is unreachable: the player can drag
+        // either side of it and is told they were wrong both times.
+        expect((b - min) % step, `salary ${profile.salary}`).toBe(0)
+      }
+      if (typeof optimal !== 'number') {
+        expect(optimal.min, `salary ${profile.salary}`).toBeLessThan(optimal.max)
+      }
     }
   })
 

@@ -10,12 +10,7 @@ import { Tab } from './screens/Tab'
 import { Rules } from './screens/Rules'
 import { CALLS, callById } from './calls/registry'
 import { COMPUTE } from './calls/compute'
-import {
-  judge,
-  optimalValue,
-  stepCount,
-  type CallResult,
-} from './calls/types'
+import { judge, referenceValue, stepCount, type CallResult } from './calls/types'
 import { callIndex, callNumber, compoundDay } from './lib/schedule'
 import { callNoFromPath, pathForCall, setPath } from './lib/route'
 import { profileOrDefault, resultFor, scoredResults, useStore } from './state/store'
@@ -73,9 +68,11 @@ export function App() {
     (value: number) => {
       const compute = COMPUTE[call.compute]
       const p = profileOrDefault(profile)
-      const best = optimalValue(call.optimal)
-      const verdict = judge(value, call.optimal)
+      const verdict = judge(value, call.optimal, p)
       const at65 = compute(value, p).at65
+      // Against the nearest correct answer, so an optimal play shows exactly
+      // zero rather than a phantom loss against a range's midpoint.
+      const best = referenceValue(value, call.optimal, p)
 
       const result: CallResult = {
         callId: call.id,

@@ -1,0 +1,168 @@
+.rules {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: calc(var(--sa-top) + var(--s-5)) var(--gutter) calc(var(--sa-bottom) + var(--s-8));
+  background: var(--bg);
+}
+
+.rules-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex: none;
+}
+
+.rules-title {
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+}
+
+.rules-actions {
+  display: flex;
+  gap: var(--s-4);
+}
+
+.rules-action {
+  color: var(--fg-3);
+  padding: var(--s-3) 0;
+  margin: calc(var(--s-3) * -1) 0;
+}
+
+.rules-count {
+  flex: none;
+}
+
+.rules-empty {
+  font: var(--t-body);
+  color: var(--fg-3);
+  margin-top: var(--s-4);
+}
+
+.rules-list {
+  display: flex;
+  flex-direction: column;
+  /* Hairline is the background showing through a 1px gap, never a border. */
+  gap: 1px;
+}
+
+.rules-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border-radius: var(--r);
+}
+
+.rules-meta {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.rules-no {
+  color: var(--fg-2);
+}
+
+/* The payload. Sentence case, because this is the one thing here meant to be
+   read as a sentence rather than scanned as data. */
+.rules-text {
+  font: var(--t-body);
+  color: var(--fg);
+  text-wrap: balance;
+}
+
+.rules-tag {
+  margin-left: auto;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+/* ---- Print -------------------------------------------------------------------
+ * The page has to survive leaving the app: printed, or saved as a PDF, it is a
+ * reference someone reads in a dealership. That means resetting the phone shell
+ * above this screen — the device frame and the fixed-height scroll container
+ * would otherwise clip the list to one 874px screenshot of a phone, and an
+ * absolutely-positioned screen inside a zero-height body prints as one blank page.
+ *
+ * Every shell selector is prefixed with `body` purely to out-specify the rules it
+ * is undoing: those live in other stylesheets whose load order is decided by the
+ * bundler, and a bare class here would win or lose depending on it.
+ */
+@media print {
+  html,
+  body,
+  body #root,
+  body .device,
+  body .device--bare,
+  body .device--framed,
+  body .device-stage,
+  body .device-screen,
+  body .app,
+  body .app-screen {
+    position: static;
+    height: auto;
+    width: auto;
+    max-width: none;
+    overflow: visible;
+    background: #fff;
+    color: #000;
+    box-shadow: none;
+    border: 0;
+    transform: none;
+    opacity: 1;
+  }
+
+  body .device-body,
+  body .device-island,
+  body .device-home,
+  .rules-actions {
+    display: none;
+  }
+
+  body .rules {
+    height: auto;
+    overflow: visible;
+    background: #fff;
+    color: #000;
+    padding: 0;
+    gap: 12pt;
+  }
+
+  .rules-title,
+  .rules-text,
+  .rules-no {
+    color: #000;
+  }
+
+  .rules-count,
+  .rules-meta {
+    color: #555;
+  }
+
+  .rules-list {
+    gap: 0;
+  }
+
+  .rules-row {
+    background: none;
+    padding: 8pt 0;
+    /* Print has no lighter ground to show a gap through, so the hairline
+       becomes an actual rule here — the one place in the product it is one. */
+    border-bottom: 0.5pt solid #b9b3a7;
+    /* A rule and its number must never be split across two pages. */
+    break-inside: avoid;
+  }
+
+  .rules-text {
+    font-size: 12pt;
+  }
+
+  .rules-tag {
+    color: #555;
+    opacity: 1;
+  }
+}

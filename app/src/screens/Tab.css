@@ -1,0 +1,132 @@
+.tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: calc(var(--sa-top) + var(--s-5)) var(--gutter) calc(var(--sa-bottom) + var(--s-8));
+  background: var(--bg);
+}
+
+.tab-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex: none;
+}
+
+.tab-title {
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+}
+
+.tab-close {
+  color: var(--fg-3);
+  /* The tap target is bigger than the type — 44px, unpadded visually. */
+  padding: var(--s-3) 0 var(--s-3) var(--s-4);
+  margin: calc(var(--s-3) * -1) 0;
+}
+
+/* The whole screen exists for this number. */
+.tab-hero {
+  font: var(--t-hero);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  line-height: 0.9;
+  margin-top: calc(var(--s-2) * -1);
+}
+
+.tab-hero[data-zero] {
+  color: var(--fg-3);
+}
+
+.tab-sub {
+  color: var(--fg-2);
+  margin-top: calc(var(--s-1) * -1);
+}
+
+.tab-stats {
+  flex: none;
+  margin-top: var(--s-2);
+}
+
+.tab-missed {
+  color: var(--loss);
+  flex: none;
+}
+
+.tab-empty {
+  font: var(--t-body);
+  color: var(--fg-3);
+  margin-top: var(--s-4);
+}
+
+/* ---- Ledger ------------------------------------------------------------------ */
+
+.tab-rows {
+  display: flex;
+  flex-direction: column;
+  /* Hairlines are the background showing through a 1px gap, never a border. */
+  gap: 1px;
+  margin-top: var(--s-2);
+}
+
+.tab-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--tap);
+  padding: var(--s-2) var(--s-3);
+  background: var(--surface);
+  border-radius: var(--r);
+}
+
+.tab-no {
+  color: var(--fg-2);
+  flex: none;
+}
+
+.tab-date {
+  flex: none;
+}
+
+/* A solid block, not a pill: a verdict should land, not reassure. */
+.tab-chip {
+  margin-left: auto;
+  padding: 4px var(--s-2);
+  border-radius: var(--r);
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--on-accent);
+  background: var(--accent);
+  flex: none;
+}
+
+.tab-chip[data-v='short'] {
+  background: var(--loss);
+  color: #fff;
+}
+
+.tab-chip[data-v='over'] {
+  background: var(--caution);
+  color: var(--ink);
+}
+
+.tab-delta {
+  font: var(--t-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  flex: none;
+  min-width: 7ch;
+  text-align: right;
+}
+
+.tab-delta[data-v='short'] {
+  color: var(--loss);
+}
+
+.tab-delta[data-v='over'] {
+  color: var(--caution);
+}

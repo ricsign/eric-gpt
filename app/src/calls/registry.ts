@@ -39,7 +39,12 @@ export const CALLS: Call[] = [
       { k: 'MATCH', v: '50% UP TO 6% OF PAY' },
     ],
     compute: 'employerMatch',
-    optimal: 6,
+    // 6% is where the employer's money stops, not where saving stops being
+    // wise. A player who drags to 12% has more at 65, not less, so calling
+    // that "overshot" would be the app telling a plain lie to the one person
+    // who did the best thing on the screen. The lesson lives entirely on the
+    // left edge: below 6 you are handing back pay you were offered.
+    optimal: { min: 6, max: 15 },
     rule: 'Take the match before anything else.',
     // Vanguard's How America Saves shows deferral rates are not a distribution at
     // all — they are a set of spikes at whatever number a form put in front of
@@ -69,7 +74,7 @@ export const CALLS: Call[] = [
     },
     fixed: [
       { k: 'SPARE CASH', v: '$500, ONE TIME' },
-      { k: 'THE CARDS', v: '$2,400 AT 24.99% · $900 AT 17.99%' },
+      { k: 'THE CARDS', v: '$4,200 AT 24.99% · $2,800 AT 11.99%' },
     ],
     compute: 'debtSplit',
     optimal: 0,
@@ -102,7 +107,7 @@ export const CALLS: Call[] = [
     },
     fixed: [
       { k: 'PAY', v: '{{salary}}' },
-      { k: 'MONTHLY COSTS', v: '55% OF NET PAY' },
+      { k: 'MONTHLY COSTS', v: '50% OF TAKE-HOME' },
     ],
     compute: 'emergencyFund',
     optimal: { min: 3, max: 6 },
@@ -133,8 +138,8 @@ export const CALLS: Call[] = [
       start: 18,
     },
     fixed: [
-      { k: 'SOFA', v: '$2,400 ON STORE CREDIT' },
-      { k: 'IF UNPAID', v: '29.99% BACK TO DAY ONE' },
+      { k: 'SOFA', v: '$3,000 ON STORE CREDIT' },
+      { k: 'IF UNPAID', v: '26.99% BACK TO DAY ONE' },
     ],
     compute: 'promoDeadline',
     optimal: { min: 1, max: 12 },
@@ -178,43 +183,43 @@ export const CALLS: Call[] = [
     // the spaces between them are nearly empty, which is exactly what an anchoring
     // effect looks like when you plot it.
     crowd: [45, 2, 2, 2, 3, 10, 2, 2, 3, 1, 11, 1, 1, 1, 1, 5, 1, 1, 1, 1, 4],
-    tomorrow: 'Your plan will tax you once. You choose when.',
+    tomorrow: 'The refund felt like a win. It was your own money.',
     assumptions:
       '3% raises a year on whatever base you agree to, compounded to 65 with savings at 7% — the raises are an assumption, not a promise.',
   },
 
   {
     id: 6,
-    title: 'Your plan will tax you once. You choose when.',
+    title: 'The refund felt like a win. It was your own money.',
     domain: 'tax',
     variable: {
-      key: 'toRoth',
-      min: 0,
-      max: 100,
+      key: 'withheld',
+      min: 60,
+      max: 180,
       step: 5,
       unit: '%',
-      label: 'of each contribution to Roth',
-      start: 0,
+      label: 'of the tax you actually owe',
+      start: 160,
     },
     fixed: [
       { k: 'PAY', v: '{{salary}}' },
-      { k: 'AT RETIREMENT', v: 'ASSUMED 22% BRACKET' },
+      { k: 'SAFE HARBOR', v: "90% OF THIS YEAR'S TAX" },
     ],
-    compute: 'rothSplit',
-    optimal: { min: 80, max: 100 },
-    rule: 'Go pre-tax when high, Roth when low.',
-    // Pre-tax is the default election in most plans and defaults win, so the tallest
-    // bar is at 0% Roth. The second tallest is at 100%, because "Roth is for young
-    // people" is the one piece of tax folklore that actually circulates. The bump at
-    // 50% is the hedge — people splitting because they cannot forecast a bracket
-    // forty years out, which is a more defensible answer than its popularity
-    // suggests and the reason the optimum here is a band, not a point.
-    crowd: [38, 2, 2, 1, 2, 6, 1, 1, 1, 1, 14, 1, 1, 1, 1, 4, 1, 1, 1, 1, 19],
+    compute: 'withholding',
+    optimal: 90,
+    rule: 'Owe a little. A refund is a 0% loan.',
+    // The IRS reports refunds on about two thirds of individual returns, averaging
+    // a little over $3,000 — against a median federal liability in the low five
+    // figures, that is the whole distribution sitting well right of par, which is
+    // why the control opens at 160% and the tall bars are all above 100. The bump
+    // at 100 is the small group who actually tune a W-4; the thin left tail is the
+    // people who owe in April, most of them by accident rather than by plan. Every
+    // bar left of 90 is a penalty the crowd did not know it was paying.
+    crowd: [1, 1, 1, 1, 1, 2, 3, 4, 6, 7, 8, 9, 9, 8, 7, 6, 5, 4, 4, 3, 3, 2, 2, 2, 1],
     tomorrow: 'Your mechanic leaves a voicemail with a number in it.',
     assumptions:
-      '2026 single-filer brackets on your pay today against an assumed 22% in retirement, growing at 7% until 65 — that future bracket is the assumption doing all the work.',
+      'Federal income tax only, single filer, no credits and no other income — the 90% line is the safe harbor in the code, and the penalty above it is the IRS rate on what you still owed.',
   },
-
   {
     id: 7,
     title: 'Your mechanic leaves a voicemail with a number in it.',
@@ -230,7 +235,7 @@ export const CALLS: Call[] = [
     },
     fixed: [
       { k: 'CAR WORTH', v: '$5,000 PRIVATE PARTY' },
-      { k: 'OR REPLACE', v: '$520/MO FOR 60 MONTHS' },
+      { k: 'OR REPLACE', v: '$22,000 AT $441/MO' },
     ],
     compute: 'repairOrReplace',
     optimal: { min: 0, max: 2500 },
@@ -263,7 +268,7 @@ export const CALLS: Call[] = [
       start: 54,
     },
     fixed: [
-      { k: 'CONTRIBUTION', v: '10% OF {{salary}}' },
+      { k: 'INVESTED', v: '{{salary}} NOW, THEN 10% A YEAR' },
       { k: 'RETURN', v: '7% A YEAR BEFORE FEES' },
     ],
     compute: 'feeDragCall',
@@ -300,8 +305,8 @@ export const CALLS: Call[] = [
       start: 2,
     },
     fixed: [
-      { k: 'THE HOUSE', v: '$420,000 AT 6.4%' },
-      { k: 'ROUND TRIP', v: '9% IN CLOSING AND SELLING' },
+      { k: 'THE HOUSE', v: '$360,000 AT 6.5%' },
+      { k: 'OR RENT', v: '$2,160/MO · 9% ROUND TRIP' },
     ],
     compute: 'rentVsBuy',
     optimal: { min: 5, max: 15 },
@@ -332,8 +337,8 @@ export const CALLS: Call[] = [
       start: 4,
     },
     fixed: [
-      { k: 'INVESTED', v: '$10,000 ONCE' },
-      { k: 'HELD', v: '20 YEARS AT 7% A YEAR' },
+      { k: 'INVESTED', v: '{{salary}} NOW, THEN 10% A YEAR' },
+      { k: 'HELD', v: 'UNTIL 65 AT 7% A YEAR' },
     ],
     compute: 'timingMarket',
     optimal: 0,

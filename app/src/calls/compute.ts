@@ -463,89 +463,97 @@ export const anchorOffer: ComputeFn = (value, profile) => {
 }
 
 /* ==========================================================================
- * 6. rothSplit
+ * 6. withholding
  *
- * Value: percent of contributions directed to Roth, 0-100.
+ * Value: tax withheld across the year as a percent of the tax actually owed,
+ * 60-180.
  *
- * Model. The player directs 10% of gross pay (capped at the 2026 deferral
- * limit) at retirement. The pre-tax share reduces taxable income; the Roth
- * share is taxed on the way in, and the tax is computed bracket by bracket
- * against the 2026 single brackets rather than at a flat marginal rate, so a
- * contribution that straddles a bracket edge is handled correctly.
+ * Why this call and not Roth-vs-pre-tax. The Roth question was modelled first
+ * and cut, because an honest model of it has no answer a player can carry: the
+ * optimum wanders non-monotonically with both salary and age (all pre-tax at
+ * $20k, a 55% split at $62k, all pre-tax again at $320k) and the spread between
+ * best and worst is a few percent. A daily call has to end in a rule. This one
+ * does, and the cliff in it is statutory rather than modelled.
  *
- * Everything is projected in TODAY'S DOLLARS, at a 5% real return with 1% real
- * raises — because brackets are inflation-indexed, and comparing a nominal 2061
- * income to 2026 brackets would invent tax the player will never pay. This is
- * the only call whose at65 is real rather than nominal, and the receipt says so.
+ * Model. Federal income tax only. Liability is the 2026 single-filer schedule
+ * on pay less the standard deduction — no credits, no state, no other income,
+ * all stated on the card. The player's dial moves what their W-4 hands over
+ * during the year; the tax owed does not move at all. Withholding more or less
+ * changes exactly one thing: who holds the money, and for how long.
  *
- * The retirement rate is computed, not assumed: 4% of the pre-tax balance is
- * withdrawn on top of Social Security (40% replacement of final pay, 85%
- * taxable — the share that applies to anyone with meaningful withdrawals), and
- * the rate that matters is the marginal one on the withdrawal itself, not the
- * effective rate on everything. The 40% replacement is the one unsourced input
- * and it moves the answer, so it is stated.
+ * Dwell. Withholding comes out evenly across the year, so the average dollar of
+ * an over-withheld excess sits with the IRS for about six months before the
+ * year ends, plus the roughly three and a half months until a spring refund
+ * lands: 9.5 months. The same figure runs the other way for a shortfall, which
+ * the player holds over the same stretch before settling in April.
  *
- * The honest result, and it is worth saying out loud: for a single filer this
- * model has pre-tax winning or tying at every salary. At the default $62,000
- * the two rates land on 12% exactly and the dial is flat to the dollar — a
- * genuine wash, which is the real lesson of the Roth argument. Above and below
- * that band pre-tax wins outright, so the optimal is 0.
+ * The cliff. Underpay by more than 10% of the year's tax and the safe harbour
+ * in IRC 6654 is gone, and interest runs on the shortfall at the IRS rate from
+ * each quarterly due date. That rate is above savings rates, so the cliff is
+ * real: below 90% the money the player kept earns less than the penalty costs.
+ * Between 90% and 100% there is no penalty and the player holds their own
+ * money, so the best point on the dial is the safe-harbour edge itself. Above
+ * 100% every extra dollar is lent to the Treasury at zero.
+ *
+ * That shape — a hard edge on one side, a slope on the other, and one point
+ * between them — is the whole reason this call works where the Roth one did
+ * not. It also makes the answer a constant: 90% is the optimum at every salary
+ * and every age, because it is a rule in the tax code and not an artefact of a
+ * projection. Salary moves what being wrong costs, never what the answer is.
+ *
+ * Known simplifications: withholding is treated as paid evenly (which is what
+ * the statute assumes for wages, and is why W-2 earners can fix an underpayment
+ * in December), the prior-year 100%/110% safe harbour is not modelled, and the
+ * penalty is computed as simple interest over the dwell rather than compounded
+ * per quarter. Each of those moves the cost by a little. None moves the answer.
  * ========================================================================== */
 
-const REAL_RETURN = 0.05
-const REAL_RAISE = 0.01
-const SS_REPLACEMENT = 0.4
-const SS_TAXABLE_SHARE = 0.85
+/** Months the disputed money sits with the wrong party: half a year, then to April. */
+const DWELL = 9.5 / 12
+const SAFE_HARBOR = 0.9
+const IRS_RATE = FACTS.irsUnderpayment.value
 
-/** Value at 65, in today's dollars, of $1/yr of contributions growing with raises. */
-function realStream(years: number): number {
-  const n = Math.max(1, Math.round(years))
-  const x = (1 + REAL_RAISE) / (1 + REAL_RETURN)
-  return Math.pow(1 + REAL_RETURN, n) * ((1 - Math.pow(x, n)) / (1 - x))
-}
+export const withholding: ComputeFn = (value, profile) => {
+  const share = Math.max(0, value) / 100
+  const owed = federalTax(Math.max(0, profile.salary - STD_DED))
+  const paid = owed * share
+  const gap = paid - owed
 
-export const rothSplit: ComputeFn = (value, profile) => {
-  const share = Math.min(1, Math.max(0, value / 100))
-  const years = Math.max(1, RETIRE_AT - profile.age)
+  // Over-withholding costs the interest the money would have earned. Under-
+  // withholding earns exactly that interest, and past the safe harbour pays it
+  // back several times over at the IRS rate.
+  const held = Math.abs(gap) * CASH * DWELL
+  const shortfall = Math.max(0, -gap)
+  const charged = share < SAFE_HARBOR ? shortfall * IRS_RATE * DWELL : 0
+  const yearly = gap >= 0 ? -held : held - charged
 
-  const gross = Math.min(profile.salary * 0.1, FACTS.contrib401k.value)
-  const trad = gross * (1 - share)
-  const taxableNow = Math.max(0, profile.salary - STD_DED)
-
-  const taxWithout = federalTax(taxableNow)
-  const taxWithTrad = federalTax(Math.max(0, taxableNow - trad))
-  const taxSaved = taxWithout - taxWithTrad
-  // The Roth share is the slice of income left exposed after the pre-tax slice
-  // comes out, so its tax is the difference across exactly that slice.
-  const rothTax = taxWithTrad - federalTax(Math.max(0, taxableNow - gross))
-
-  const g = realStream(years)
-  const tradFv = trad * g
-  const rothFv = (gross * share - rothTax) * g
-
-  const ss = SS_REPLACEMENT * profile.salary * Math.pow(1 + REAL_RAISE, years)
-  const ssTaxable = ss * SS_TAXABLE_SHARE
-  const withdrawal = tradFv * 0.04
-  const base = federalTax(Math.max(0, ssTaxable - STD_DED))
-  const retireRate =
-    withdrawal > 0
-      ? (federalTax(Math.max(0, ssTaxable + withdrawal - STD_DED)) - base) / withdrawal
-      : 0
-
-  const at65 = tradFv * (1 - retireRate) + rothFv
-  const cost = (gross - taxSaved) / 12
+  const at65 = fvAnnuity(yearly / 12, monthsTo65(profile))
 
   return {
-    cost,
-    benefit: taxSaved,
+    // What the decision costs in a year, as a monthly figure like every other
+    // call. A player who lands on the answer is spending nothing.
+    cost: Math.max(0, -yearly) / 12,
+    benefit: Math.max(0, yearly),
     at65,
     breakdown: [
-      line('TAKE-HOME HIT / MO', money(cost)),
-      line('RATE NOW', percent(trad > 0 ? taxSaved / trad : 0, 1)),
-      line('RATE AT 65', percent(retireRate, 1)),
-      line('TAX SAVED / YR', money(taxSaved)),
-      line("AT 65, TODAY'S $", moneyCompact(at65), true),
+      line('TAX OWED', money(owed)),
+      line('WITHHELD', money(paid)),
+      line(
+        gap >= 0 ? 'REFUND IN APRIL' : 'OWED IN APRIL',
+        money(Math.abs(gap)),
+        true,
+      ),
+      ...(charged > 0 ? [line('IRS INTEREST', money(charged))] : []),
+      line('AT 65', moneyCompact(at65)),
     ],
+    // Index 0 is 60%. Everything below the safe harbour is a penalty zone;
+    // everything above par is an interest-free loan to the Treasury.
+    blockTint: (index) => {
+      const pct = 60 + index * 5
+      if (pct < SAFE_HARBOR * 100) return 'loss'
+      if (pct <= 100) return 'accent'
+      return 'plain'
+    },
   }
 }
 
@@ -715,7 +723,7 @@ function geom(q: number, n: number): number {
 }
 
 /** Positive means buying is ahead at the end of a `years`-long stay. */
-function buyMinusRent(years: number): { delta: number; cashGap: number } {
+function buyMinusRent(years: number): { delta: number; owningTotal: number } {
   const y = Math.max(0, years)
   const m = Math.round(y * 12)
 
@@ -728,7 +736,7 @@ function buyMinusRent(years: number): { delta: number; cashGap: number } {
   const fixed = 12 * MORT_PAYMENT
   const inflating = OWN_COST * HOME - 12 * RENT_MONTHLY
   const n = Math.round(y)
-  const cashGap = fixed * n + inflating * geom(1 + APPRECIATION, n)
+  const owningTotal = fixed * n + OWN_COST * HOME * geom(1 + APPRECIATION, n)
   const invested =
     n > 0
       ? Math.pow(1 + NOMINAL, n - 0.5) *
@@ -739,21 +747,26 @@ function buyMinusRent(years: number): { delta: number; cashGap: number } {
   const renter =
     HOME * (DOWN_SHARE + CLOSING_SHARE) * Math.pow(1 + NOMINAL, y) + invested
 
-  return { delta: buyer - renter, cashGap }
+  return { delta: buyer - renter, owningTotal }
 }
 
 export const rentVsBuy: ComputeFn = (value, profile) => {
   const years = Math.min(15, Math.max(0, value))
-  const { delta, cashGap } = buyMinusRent(years)
+  const { delta, owningTotal } = buyMinusRent(years)
   const n = monthsTo65(profile)
   const at65 = fvLump(delta, n - Math.round(years * 12))
 
+  // Average monthly cost of owning across the stay. Running costs inflate with
+  // the house, so this creeps up the longer the player says they will stay.
+  const owningMonthly =
+    years >= 1 ? owningTotal / (Math.round(years) * 12) : MORT_PAYMENT + (OWN_COST * HOME) / 12
+
   return {
-    cost: years > 0 ? cashGap / (years * 12) : MORT_PAYMENT + (OWN_COST * HOME) / 12 - RENT_MONTHLY,
+    cost: owningMonthly,
     benefit: delta / Math.max(1, years),
     at65,
     breakdown: [
-      line('OWNING / MO', money(MORT_PAYMENT + (OWN_COST * HOME) / 12)),
+      line('OWNING / MO', money(owningMonthly)),
       line('RENTING / MO', money(RENT_MONTHLY)),
       line('COST TO SELL', money(SELL_COST * HOME * Math.pow(1 + APPRECIATION, years))),
       line('BUY MINUS RENT', money(delta), true),
@@ -834,11 +847,38 @@ export const COMPUTE: Record<string, ComputeFn> = {
   emergencyFund,
   promoDeadline,
   anchorOffer,
-  rothSplit,
+  withholding,
   repairOrReplace,
   feeDragCall,
   rentVsBuy,
   timingMarket,
+}
+
+/**
+ * Every number this module models, keyed by `Call.compute`.
+ *
+ * The card's `fixed` rows state the scenario to the player — "$4,200 at 24.99%"
+ * — and the receipt they share repeats it. Nothing in the type system connects
+ * that text to the constants below, and the two were written by different
+ * hands: when this app was assembled, six of the ten calls stated a scenario
+ * their own maths did not use. That is the failure mode this table exists to
+ * make impossible. A seam test reads the numbers back out of every card and
+ * requires each one to appear here, so a constant that moves without its copy
+ * fails the build instead of quietly shipping a receipt that lies.
+ *
+ * Percentages are listed as they are written on the card (24.99, not 0.2499).
+ */
+export const SCENARIO: Record<string, number[]> = {
+  employerMatch: [MATCH_RATE * 100, MATCH_LIMIT * 100],
+  debtSplit: [CARD_HIGH.balance, CARD_HIGH.apr * 100, CARD_LOW.balance, CARD_LOW.apr * 100, SPLIT_PAYMENT],
+  emergencyFund: [50],
+  promoDeadline: [PROMO_PRINCIPAL, PROMO_APR * 100, PROMO_WINDOW],
+  anchorOffer: [RAISE * 100],
+  withholding: [SAFE_HARBOR * 100],
+  repairOrReplace: [CAR_VALUE, REPLACEMENT_PRICE, REPLACEMENT_PAYMENT, REPLACEMENT_TERM],
+  feeDragCall: [10, NOMINAL * 100],
+  rentVsBuy: [HOME, MORT_APR * 100, RENT_MONTHLY, (CLOSING_SHARE + SELL_COST) * 100],
+  timingMarket: [10, NOMINAL * 100, RETIRE_AT],
 }
 
 /** Every outcome field is a real number, whatever the player drags it to. */

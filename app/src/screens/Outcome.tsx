@@ -2,7 +2,14 @@ import { useMemo } from 'react'
 import { Histogram } from '../ui/Histogram'
 import { COMPUTE } from '../calls/compute'
 import { blendCrowd, percentileOf } from '../lib/crowd'
-import { judge, optimalValue, stepCount, type Call, type Profile } from '../calls/types'
+import {
+  judge,
+  optimalValue,
+  referenceValue,
+  stepCount,
+  type Call,
+  type Profile,
+} from '../calls/types'
 import { moneyCompact } from '../lib/format'
 import { haptic } from '../lib/haptics'
 import './Outcome.css'
@@ -43,11 +50,18 @@ export function Outcome({
   onReceipt: () => void
 }) {
   const compute = COMPUTE[call.compute]
-  const verdict = judge(value, call.optimal)
-  const best = optimalValue(call.optimal)
+  const verdict = judge(value, call.optimal, profile)
+  // What this play is measured against: the nearest correct answer, so an
+  // optimal play is compared with itself and shows no loss.
+  const reference = referenceValue(value, call.optimal, profile)
+  // Where the marker sits on the histogram — a single representative point.
+  const best = optimalValue(call.optimal, profile)
 
   const mine = useMemo(() => compute(value, profile), [compute, value, profile])
-  const theirs = useMemo(() => compute(best, profile), [compute, best, profile])
+  const theirs = useMemo(
+    () => compute(reference, profile),
+    [compute, reference, profile],
+  )
 
   const delta = mine.at65 - theirs.at65
   const steps = stepCount(call.variable)

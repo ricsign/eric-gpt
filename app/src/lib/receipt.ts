@@ -488,7 +488,6 @@ function paintCard(
     ctx.globalAlpha = input.verdict === 'short' ? 1 : 0.62
     drawTracked(ctx, delta.label, PAD, y, 4.3)
     ctx.globalAlpha = 1
-    ctx.fillStyle = input.verdict === 'short' ? palette.loss : palette.ink
     drawTracked(ctx, delta.value, w - PAD, y, 1.3, 'right')
   }
 

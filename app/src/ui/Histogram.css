@@ -1,0 +1,151 @@
+/*
+ * The crowd chart.
+ *
+ * Three states of one bar — crowd, mode, you — plus a hard accent rule on the
+ * optimum. Nothing else: no axis lines, no grid, no ticks. The distance between
+ * the tallest bar and the accent rule IS the content, and every extra mark
+ * competes with it.
+ */
+
+.hist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+.hist-plot {
+  position: relative;
+  height: 96px;
+  /* The rise animation overshoots; without this the tallest bars climb out of
+     the plot and collide with the label above it for 100ms. */
+  overflow: hidden;
+}
+
+.hist-bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  /* Hairline as a gap showing the background through, never a border. */
+  gap: 1px;
+}
+
+.hist-bar {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 0;
+  background: var(--fg-3);
+  /*
+   * Linear, not logarithmic. A log scale would flatter the crowd by shrinking
+   * the auto-enrolment spike into the noise, and that spike is the lesson.
+   * The 3px floor keeps a 1% bucket legible as a tick rather than a hole.
+   */
+  height: calc(3px + (100% - 3px) * var(--r));
+  transform-origin: bottom;
+  animation: hist-rise 260ms var(--ease-spring) backwards;
+  animation-delay: calc(var(--i) * 12ms);
+}
+
+/* The crowd's pile, one step brighter. This is the bar the optimum is measured
+   against, so it has to separate from its neighbours without becoming a colour. */
+.hist-bar[data-role='mode'] {
+  background: var(--fg-2);
+}
+
+.hist-bar[data-role='you'] {
+  background: var(--accent);
+}
+
+.hist-bar[data-role='you'][data-v='short'],
+.hist-bar[data-role='you'][data-v='over'] {
+  background: var(--loss);
+}
+
+/* ---- The optimum ------------------------------------------------------------ */
+
+.hist-optimal {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--accent);
+  /* Over the bars, not behind them: behind, a tall bucket at the optimum would
+     swallow the only mark that says where the right answer is. */
+  z-index: 1;
+}
+
+.hist-optimal-cap {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+/* ---- Axis and legend --------------------------------------------------------- */
+
+.hist-axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--fg-3);
+}
+
+.hist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  margin: 0;
+}
+
+.hist-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-3);
+}
+
+.hist-key::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  flex: none;
+}
+
+.hist-key[data-role='mode'] {
+  color: var(--fg-2);
+}
+
+.hist-key[data-role='you'],
+.hist-key[data-role='best'] {
+  color: var(--accent);
+}
+
+.hist-key[data-role='you'][data-v='short'],
+.hist-key[data-role='you'][data-v='over'] {
+  color: var(--loss);
+}
+
+/* Diamond, matching the cap on the rule in the plot. */
+.hist-key[data-role='best']::before {
+  transform: rotate(45deg);
+}
+
+@keyframes hist-rise {
+  from {
+    transform: scaleY(0.02);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hist-bar {
+    animation: none;
+  }
+}

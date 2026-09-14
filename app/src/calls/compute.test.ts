@@ -26,7 +26,7 @@ import {
   promoDeadline,
   rentVsBuy,
   repairOrReplace,
-  rothSplit,
+  withholding,
   timingMarket,
 } from './compute'
 import { DEFAULT_PROFILE, type CallOutcome, type ComputeFn, type Profile } from './types'
@@ -65,9 +65,9 @@ const SPECS: Spec[] = [
   { name: 'emergencyFund', fn: emergencyFund, min: 0, max: 12, step: 1, optimal: 5, rule: 'at65' },
   { name: 'promoDeadline', fn: promoDeadline, min: 1, max: 24, step: 1, optimal: 12, rule: 'at65' },
   { name: 'anchorOffer', fn: anchorOffer, min: 0, max: 20, step: 1, optimal: 8, rule: 'at65' },
-  // Pre-tax and Roth land on the same rate at the default salary, so the
-  // projection is flat and only the take-home cost separates the positions.
-  { name: 'rothSplit', fn: rothSplit, min: 0, max: 100, step: 5, optimal: 0, rule: 'plateau' },
+  // The safe-harbour edge: the last point where no penalty is due and the
+  // player is still holding their own money.
+  { name: 'withholding', fn: withholding, min: 60, max: 180, step: 5, optimal: 90, rule: 'at65' },
   { name: 'repairOrReplace', fn: repairOrReplace, min: 0, max: 4000, step: 100, optimal: 2500, rule: 'at65' },
   { name: 'feeDragCall', fn: feeDragCall, min: 3, max: 150, step: 1, optimal: 3, rule: 'at65' },
   { name: 'rentVsBuy', fn: rentVsBuy, min: 0, max: 15, step: 1, optimal: 15, rule: 'at65' },
@@ -176,23 +176,67 @@ describe('shape', () => {
     expect(rows[0].cost).toBe(0)
   })
 
-  it('roth split: the projection is a wash, the take-home cost is not', () => {
+  it('withholding: a cliff below the safe harbour, a slope above par', () => {
     const rows = sweep(SPECS[5])
-    const top = Math.max(...rows.map((r) => r.at65))
-    const bottom = Math.min(...rows.map((r) => r.at65))
-    expect((top - bottom) / top).toBeLessThan(5e-4)
-    for (let i = 1; i < rows.length; i++) expect(rows[i].cost).toBeGreaterThan(rows[i - 1].cost)
-    // The two rates the call turns on land on the same number at this salary.
-    const rateNow = rothSplit(0, P).breakdown.find((b) => b.label === 'RATE NOW')!.value
-    const rateLater = rothSplit(0, P).breakdown.find((b) => b.label === 'RATE AT 65')!.value
-    expect(rateNow).toBe(rateLater)
+    const at = (pct: number) => rows.find((r) => r.value === pct)!
+    // Every step up to the safe harbour is an improvement, because each one
+    // shrinks a shortfall that is accruing interest at the IRS rate.
+    for (const pct of [65, 70, 75, 80, 85, 90]) {
+      expect(at(pct).at65, `${pct}%`).toBeGreaterThan(at(pct - 5).at65)
+    }
+    // Past it, every extra dollar is lent to the Treasury for free.
+    for (const pct of [95, 100, 120, 150, 180]) {
+      expect(at(pct).at65, `${pct}%`).toBeLessThan(at(90).at65)
+    }
+    for (let i = rows.findIndex((r) => r.value === 100) + 1; i < rows.length; i++) {
+      expect(rows[i].at65).toBeLessThan(rows[i - 1].at65)
+    }
   })
 
-  it('roth split: pre-tax wins outright once the rates separate', () => {
-    for (const salary of [30_000, 90_000, 150_000]) {
-      const rows = sweep(SPECS[5], { salary, age: 30 })
-      expect(rows[0].at65).toBeGreaterThanOrEqual(rows[rows.length - 1].at65)
+  it('withholding: crossing the safe harbour is a step, not a nudge', () => {
+    const rows = sweep(SPECS[5])
+    const at = (pct: number) => rows.find((r) => r.value === pct)!.at65
+    // 85 -> 90 clears a penalty as well as closing a gap; 90 -> 95 only gives
+    // money away. The first move has to be worth much more than the second.
+    const clearing = at(90) - at(85)
+    const giving = at(90) - at(95)
+    expect(clearing).toBeGreaterThan(giving * 3)
+  })
+
+  it('withholding: the answer is 90% for everyone, because it is a statute', () => {
+    // The one call in the set whose optimum cannot move with the player. What
+    // moves is the cost of being wrong, which is why the dial is still worth
+    // dragging on any salary.
+    const peak = (profile: Profile) => {
+      const rows = sweep(SPECS[5], profile)
+      const top = Math.max(...rows.map((r) => r.at65))
+      return rows.find((r) => r.at65 === top)!.value
     }
+    for (const profile of [
+      { salary: 20_000, age: 22 },
+      P,
+      { salary: 150_000, age: 30 },
+      { salary: 420_000, age: 58 },
+    ]) {
+      expect(peak(profile), `salary ${profile.salary}`).toBe(90)
+    }
+    // Being wrong at $150k costs more than being wrong at $20k.
+    const missBy = (profile: Profile) => {
+      const rows = sweep(SPECS[5], profile)
+      const at = (pct: number) => rows.find((r) => r.value === pct)!.at65
+      return at(90) - at(180)
+    }
+    expect(missBy({ salary: 150_000, age: 30 })).toBeGreaterThan(missBy({ salary: 20_000, age: 30 }))
+  })
+
+  it('withholding: the tax owed never moves, only who is holding it', () => {
+    const owed = (v: number) =>
+      withholding(v, P).breakdown.find((b) => b.label === 'TAX OWED')!.value
+    // The dial is a W-4, not a tax cut. If this ever stops being true the call
+    // is teaching the opposite of its own rule.
+    expect(new Set([60, 90, 100, 140, 180].map(owed)).size).toBe(1)
+    expect(withholding(90, P).breakdown.some((b) => b.label === 'IRS INTEREST')).toBe(false)
+    expect(withholding(60, P).breakdown.some((b) => b.label === 'IRS INTEREST')).toBe(true)
   })
 
   it('repair or replace: diminishing life bought, one minimum', () => {
@@ -324,13 +368,12 @@ describe('nothing breaks anywhere on any dial', () => {
     for (let i = 0; i < n; i++) expect(['accent', 'plain', 'loss']).toContain(o.blockTint(i))
   })
 
-  it('costs are never negative except where paying more is genuinely cheaper', () => {
+  it('cost is money leaving the player, so it is never negative', () => {
     for (const spec of SPECS) {
-      for (const value of positions(spec.min, spec.max, spec.step)) {
-        const o = spec.fn(value, P)
-        // rentVsBuy is the one dial where the comparison itself can flip sign:
-        // past the break-even, owning costs less per month than renting.
-        if (spec.name !== 'rentVsBuy') expect(o.cost).toBeGreaterThanOrEqual(0)
+      for (const profile of PROFILES) {
+        for (const value of positions(spec.min, spec.max, spec.step)) {
+          expect(spec.fn(value, profile).cost, `${spec.name} @ ${value}`).toBeGreaterThanOrEqual(0)
+        }
       }
     }
   })
@@ -342,7 +385,7 @@ describe('nothing breaks anywhere on any dial', () => {
       ['emergencyFund', -1],
       ['promoDeadline', 0],
       ['promoDeadline', 99],
-      ['rothSplit', 500],
+      ['withholding', 500],
       ['feeDragCall', -20],
       ['rentVsBuy', 40],
       ['timingMarket', -3],

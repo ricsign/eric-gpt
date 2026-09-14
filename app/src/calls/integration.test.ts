@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { COMPUTE } from './compute'
+import { COMPUTE, SCENARIO } from './compute'
 import { CALLS } from './registry'
-import { judge, optimalValue, stepCount, type Profile } from './types'
+import { judge, resolveOptimal, stepCount, type Profile } from './types'
+
+/** The best reachable position inside a call's optimal window. */
+function bestInOptimal(
+  call: (typeof CALLS)[number],
+  profile: Profile,
+  score: (v: number) => number,
+): number {
+  const o = resolveOptimal(call.optimal, profile)
+  const inside = sweep(call).filter((v) =>
+    typeof o === 'number' ? v === o : v >= o.min && v <= o.max,
+  )
+  // A range wider than one step has several correct answers; the player is
+  // entitled to the best of them, not the midpoint.
+  return inside.reduce((best, v) => (score(v) > score(best) ? v : best), inside[0])
+}
 
 /**
  * The seam tests.
@@ -71,9 +86,9 @@ describe('the declared optimal really is the best play', () => {
         // The call's own claim must agree with its own maths. If it does not,
         // the outcome screen calls a correct answer "money left behind".
         expect(
-          judge(bestValue, call.optimal),
+          judge(bestValue, call.optimal, profile),
           `call ${call.id} at salary ${profile.salary}: maths peaks at ${bestValue}, ` +
-            `but the record claims ${JSON.stringify(call.optimal)}`,
+            `but the record claims ${JSON.stringify(resolveOptimal(call.optimal, profile))}`,
         ).toBe('optimal')
       }
     },
@@ -147,9 +162,15 @@ describe('the control starts somewhere that teaches', () => {
   it('never starts on the optimal answer', () => {
     // If the control opened on the right answer the player would never have to
     // move it, and the gesture — which is the entire product — would teach
-    // nothing.
+    // nothing. Checked at every profile, because a profile-dependent optimum
+    // could drift onto the start position for some players and not others.
     for (const call of CALLS) {
-      expect(judge(call.variable.start, call.optimal), `call ${call.id}`).not.toBe('optimal')
+      for (const profile of PROFILES) {
+        expect(
+          judge(call.variable.start, call.optimal, profile),
+          `call ${call.id} at salary ${profile.salary}`,
+        ).not.toBe('optimal')
+      }
     }
   })
 
@@ -179,9 +200,44 @@ describe('the optimal play beats the starting position', () => {
     // Every call must leave the player better off than where they started, or
     // locking in without touching anything would be as good as playing.
     const compute = COMPUTE[call.compute]
-    const profile = { salary: 62_000, age: 30 }
-    const atStart = compute(call.variable.start, profile).at65
-    const atBest = compute(optimalValue(call.optimal), profile).at65
-    expect(atBest, `call ${call.id}`).toBeGreaterThan(atStart)
+    for (const profile of PROFILES) {
+      const score = (v: number) => compute(v, profile).at65
+      const atStart = score(call.variable.start)
+      // Against the best answer available inside the optimal window, not its
+      // midpoint — for a wide range the midpoint can genuinely be worse than a
+      // start position sitting near one of the edges.
+      const atBest = score(bestInOptimal(call, profile, score))
+      expect(atBest, `call ${call.id} at salary ${profile.salary}`).toBeGreaterThan(atStart)
+    }
   })
+})
+
+describe('the card states the scenario the maths actually uses', () => {
+  /**
+   * Pulls every figure out of a card row: "$4,200 AT 24.99%" -> [4200, 24.99].
+   * The `{{salary}}` token carries no digits, so it falls out on its own.
+   */
+  const numbers = (text: string): number[] =>
+    (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).map((n) => Number(n.replace(/,/g, '')))
+
+  // A card rounds to the dollar and to two decimal places; the model does not.
+  const has = (pool: number[], n: number) =>
+    pool.some((p) => Math.abs(p - n) <= Math.max(0.51, Math.abs(p) * 0.001))
+
+  it.each(CALLS.map((c) => [c.id, c.title, c] as const))(
+    'call %i — %s',
+    (_id, _title, call) => {
+      const pool = SCENARIO[call.compute]
+      expect(pool, `no SCENARIO entry for ${call.compute}`).toBeDefined()
+      for (const row of call.fixed) {
+        for (const n of numbers(row.v)) {
+          expect(
+            has(pool, n),
+            `card row ${row.k} says ${n}, which ${call.compute} does not model ` +
+              `(it models ${pool.join(', ')})`,
+          ).toBe(true)
+        }
+      }
+    },
+  )
 })

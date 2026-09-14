@@ -99,12 +99,8 @@ export interface Call {
   fixed: CallFact[]
   /** Name of the pure function in compute.ts. */
   compute: string
-  /**
-   * The best play. A number, or a range when more than one position is
-   * defensible — an emergency fund is right anywhere from three to six months,
-   * and pretending otherwise would be false precision.
-   */
-  optimal: number | { min: number; max: number }
+  /** The best play. See `Optimal`. */
+  optimal: Optimal
   /** Under 10 words, imperative mood. Filed to the player's Rules forever. */
   rule: string
   /**
@@ -119,6 +115,24 @@ export interface Call {
   /** Shown on demand. Never present an estimate as a promise. */
   assumptions: string
 }
+
+/**
+ * Where the best play sits.
+ *
+ * A plain number where one position is right. A range where several are — an
+ * emergency fund is defensible anywhere from three to six months, and the
+ * employer-match call has no upper bound at all, because saving *more* than the
+ * match cap is not a mistake and calling it "Overshot" would be false advice.
+ *
+ * A function where the answer genuinely depends on who is asking. Roth versus
+ * traditional is the honest case: the crossover moves with the player's bracket,
+ * and pretending it is a constant would teach the wrong rule to whoever is on
+ * the wrong side of it.
+ */
+export type Optimal =
+  | number
+  | { min: number; max: number }
+  | ((profile: Profile) => number | { min: number; max: number })
 
 export type Verdict = 'optimal' | 'short' | 'over'
 
@@ -136,20 +150,50 @@ export interface CallResult {
   practice: boolean
 }
 
+/** Collapses a possibly profile-dependent optimum to a concrete one. */
+export function resolveOptimal(
+  optimal: Optimal,
+  profile: Profile,
+): number | { min: number; max: number } {
+  return typeof optimal === 'function' ? optimal(profile) : optimal
+}
+
 /** Where a value sits against the call's optimal. */
-export function judge(value: number, optimal: Call['optimal']): Verdict {
-  if (typeof optimal === 'number') {
-    if (value === optimal) return 'optimal'
-    return value < optimal ? 'short' : 'over'
+export function judge(value: number, optimal: Optimal, profile: Profile): Verdict {
+  const o = resolveOptimal(optimal, profile)
+  if (typeof o === 'number') {
+    if (value === o) return 'optimal'
+    return value < o ? 'short' : 'over'
   }
-  if (value < optimal.min) return 'short'
-  if (value > optimal.max) return 'over'
+  if (value < o.min) return 'short'
+  if (value > o.max) return 'over'
   return 'optimal'
 }
 
-/** The single number a call is scored against. */
-export function optimalValue(optimal: Call['optimal']): number {
-  return typeof optimal === 'number' ? optimal : (optimal.min + optimal.max) / 2
+/**
+ * The value a play should be measured against.
+ *
+ * For a play that is already optimal this is the play itself, so the loss shown
+ * is exactly zero. Measuring a correct answer against the midpoint of a range —
+ * which is what an earlier version did — told someone who banked three months of
+ * expenses that they had left money behind, which is both wrong and the single
+ * most trust-destroying thing this screen could say.
+ *
+ * For a play outside the range it is the nearest edge: the closest correct
+ * answer they could have given, not the most extreme one.
+ */
+export function referenceValue(value: number, optimal: Optimal, profile: Profile): number {
+  const o = resolveOptimal(optimal, profile)
+  if (typeof o === 'number') return o
+  if (value < o.min) return o.min
+  if (value > o.max) return o.max
+  return value
+}
+
+/** A single representative optimum, for display and for seeding a comparison. */
+export function optimalValue(optimal: Optimal, profile: Profile): number {
+  const o = resolveOptimal(optimal, profile)
+  return typeof o === 'number' ? o : (o.min + o.max) / 2
 }
 
 /** Number of discrete positions on a variable — also the crowd array length. */

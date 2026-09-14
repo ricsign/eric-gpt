@@ -227,6 +227,20 @@ export const FACTS: Record<string, Fact> = {
     note: 'A range, not a rate. Shown as "around 4%" and never as a specific product.',
   }),
 
+  irsUnderpayment: F({
+    id: 'irsUnderpayment',
+    label: 'IRS underpayment interest rate, individuals',
+    value: 0.07,
+    unit: 'rate',
+    year: 2026,
+    asOf: '2026-09-11',
+    source: 'https://www.irs.gov/payments/quarterly-interest-rates',
+    sourceName: 'IRS quarterly interest rates',
+    confidence: 'primary',
+    jurisdiction: 'US',
+    note: 'Federal short-term rate plus 3 points, reset every quarter. Held flat here for a full year, which is the only way to state it as one number.',
+  }),
+
   treasury10y: F({
     id: 'treasury10y',
     label: '10-year Treasury par yield',

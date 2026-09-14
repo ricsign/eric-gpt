@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Receipt } from '../ui/Receipt'
 import { shareReceipt, type ReceiptInput } from '../lib/receipt'
 import { COMPUTE } from '../calls/compute'
-import { judge, optimalValue, type Call, type Profile } from '../calls/types'
+import { judge, referenceValue, type Call, type Profile } from '../calls/types'
 import { formatCallDate } from '../lib/schedule'
 import { moneyCompact } from '../lib/format'
 import { haptic } from '../lib/haptics'
@@ -36,12 +36,12 @@ export function ReceiptScreen({
   const input: ReceiptInput = useMemo(() => {
     const compute = COMPUTE[call.compute]
     const mine = compute(value, profile)
-    const best = compute(optimalValue(call.optimal), profile)
+    const best = compute(referenceValue(value, call.optimal, profile), profile)
     return {
       callNo,
       date: formatCallDate(day),
       title: call.title,
-      verdict: judge(value, call.optimal),
+      verdict: judge(value, call.optimal, profile),
       value,
       unit: call.variable.unit,
       breakdown: mine.breakdown,
