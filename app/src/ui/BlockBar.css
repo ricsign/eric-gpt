@@ -19,6 +19,9 @@
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  /* A slow drag off the start of a gesture is a long-press to iOS, which raises
+     the callout and cancels the pointer stream mid-value. */
+  -webkit-touch-callout: none;
   cursor: pointer;
 }
 

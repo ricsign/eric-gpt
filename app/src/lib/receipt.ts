@@ -136,10 +136,18 @@ export function barcodeUnits(widths: number[]): number {
  * The digits under the barcode. Call, position (in hundredths, so a 7.5% play
  * does not round away), and the projection — the three numbers that produced the
  * bars above them.
+ *
+ * The widths are sized to the widest real input, not to the median one: the
+ * repair call runs to $4,000 (six digits once scaled) and a 22-year-old on the
+ * top of the salary slider clears eight figures at 65. A field that grew a digit
+ * would push COMPOUND.DAY off the paper, because the foot is one no-wrap flex
+ * row inside a clip-path — so the slice truncates from the left rather than let
+ * anything past those ranges reflow the line.
  */
 export function receiptCode(input: ReceiptInput): string {
-  const pad = (n: number, len: number) => String(Math.abs(Math.round(n))).padStart(len, '0')
-  return `${pad(input.callNo, 4)} ${pad(input.value * 100, 5)} ${pad(input.at65, 7)}`
+  const pad = (n: number, len: number) =>
+    String(Math.abs(Math.round(n))).padStart(len, '0').slice(-len)
+  return `${pad(input.callNo, 4)} ${pad(input.value * 100, 6)} ${pad(input.at65, 8)}`
 }
 
 /* ---- Torn edge --------------------------------------------------------------- */
@@ -220,13 +228,36 @@ export function stampText(verdict: Verdict): string {
   }
 }
 
+/**
+ * How the delta figure is coloured.
+ *
+ * Taken from the sign of the money, never from the verdict. The stamp is a
+ * judgement on the play and is red whenever the play was not the best one; the
+ * figure beside it is a fact, and colouring an `over` play's very real loss in
+ * neutral ink — which is what keying this off `verdict === 'short'` did — left
+ * the two marks disagreeing about the same number.
+ */
+export type DeltaTone = 'loss' | 'gain' | 'even'
+
 /** The line under the total: this play against the best one, at 65. */
-export function deltaLine(input: ReceiptInput): { label: string; value: string } {
-  if (input.verdict === 'optimal') return { label: 'VS OPTIMAL', value: 'EVEN' }
+export function deltaLine(input: ReceiptInput): {
+  label: string
+  value: string
+  tone: DeltaTone
+} {
+  const label = 'VS OPTIMAL'
+  // `money` rounds to the dollar, so a delta under fifty cents would print as
+  // "−$0" — a loss of nothing, stated as a loss.
+  const rounded = Math.round(input.delta)
+  if (input.verdict === 'optimal' || rounded === 0) return { label, value: 'EVEN', tone: 'even' }
   // A true minus sign, not a hyphen: at this size a hyphen next to a dollar sign
   // reads as a dash in the label above it.
-  const sign = input.delta < 0 ? '−' : '+'
-  return { label: 'VS OPTIMAL', value: `${sign}${money(Math.abs(input.delta))}` }
+  const sign = rounded < 0 ? '−' : '+'
+  return {
+    label,
+    value: `${sign}${money(Math.abs(rounded))}`,
+    tone: rounded < 0 ? 'loss' : 'gain',
+  }
 }
 
 /** `7%`, `$350`, `12 MONTHS` — the position, formatted the way the control showed it. */
@@ -249,8 +280,12 @@ export function receiptLines(input: ReceiptInput): BreakdownLine[] {
   // since a receipt that never states what you picked is unreadable to whoever
   // you sent it to.
   const rest = input.breakdown.filter((l) => l.label.toUpperCase() !== 'YOUR PLAY')
-  const stated = rest.some((l) => statesPlay(l, input.value))
-  if (stated) return rest.slice(0, MAX_LINES)
+  // The check runs on the lines that will actually be printed, not on the whole
+  // breakdown. Asking the full list whether the position is stated and then
+  // cutting the list to six can drop the very line that stated it, leaving a
+  // receipt that never says what was chosen — which is the one thing it must say.
+  const shown = rest.slice(0, MAX_LINES)
+  if (shown.some((l) => statesPlay(l, input.value))) return shown
   const play: BreakdownLine = { label: 'YOUR PLAY', value: playValue(input) }
   return [play, ...rest].slice(0, MAX_LINES)
 }
@@ -379,7 +414,35 @@ const PAD = 48
 const TEAR_D = 26
 const BRAND_H = 84
 const ROW_H = 54
-const TITLE_LH = 50
+
+/** Display sizes the title may be set at, largest first. */
+const TITLE_SIZES = [44, 38, 33]
+const TITLE_MAX_LINES = 3
+
+/**
+ * The title, at the largest size that does not lose a word.
+ *
+ * `wrap` truncates silently, and a title clipped in the PNG is a sentence the
+ * sender never sees go missing. Twelve words fit three lines at 44px today, so
+ * the smaller sizes are a floor rather than a design, and they cost nothing.
+ */
+function fitTitle(
+  ctx: CanvasRenderingContext2D,
+  title: string,
+  inner: number,
+  font: (weight: number, size: number, face: keyof Faces) => string,
+): { size: number; lineHeight: number; lines: string[] } {
+  for (const size of TITLE_SIZES) {
+    ctx.font = font(700, size, 'display')
+    // One more line than allowed, purely to detect an overflow the cap would hide.
+    const lines = wrap(ctx, title, inner, TITLE_MAX_LINES + 1)
+    const last = size === TITLE_SIZES[TITLE_SIZES.length - 1]
+    if (lines.length <= TITLE_MAX_LINES || last) {
+      return { size, lineHeight: Math.round(size * 1.14), lines: lines.slice(0, TITLE_MAX_LINES) }
+    }
+  }
+  throw new Error('receipt: no title size')
+}
 
 function tornOutline(ctx: CanvasRenderingContext2D, seed: string, w: number, h: number): void {
   const { top, bottom } = tearSeeds(seed)
@@ -424,8 +487,7 @@ function paintCard(
   const stamp = stampText(input.verdict)
   const delta = deltaLine(input)
 
-  ctx.font = font(700, 44, 'display')
-  const titleLines = wrap(ctx, input.title.toUpperCase(), inner, 3)
+  const title = fitTitle(ctx, input.title.toUpperCase(), inner, font)
 
   let y = TEAR_D + BRAND_H
 
@@ -458,10 +520,10 @@ function paintCard(
   y += 54
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(700, 44, 'display')
-    titleLines.forEach((l, i) => ctx.fillText(l, PAD, y + i * TITLE_LH))
+    ctx.font = font(700, title.size, 'display')
+    title.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * title.lineHeight))
   }
-  y += (titleLines.length - 1) * TITLE_LH + 34
+  y += (title.lines.length - 1) * title.lineHeight + 34
 
   if (!measure) dashedRule(ctx, y, w, palette.ink)
   y += 44
@@ -510,8 +572,8 @@ function paintCard(
   y += 120
   if (!measure) {
     ctx.font = font(400, 30, 'data')
-    ctx.fillStyle = input.verdict === 'short' ? palette.loss : palette.ink
-    ctx.globalAlpha = input.verdict === 'short' ? 1 : 0.62
+    ctx.fillStyle = delta.tone === 'loss' ? palette.loss : palette.ink
+    ctx.globalAlpha = delta.tone === 'loss' ? 1 : 0.62
     drawTracked(ctx, delta.label, PAD, y, 4.3)
     ctx.globalAlpha = 1
     drawTracked(ctx, delta.value, w - PAD, y, 1.3, 'right')
@@ -568,15 +630,34 @@ function paintCard(
 }
 
 /**
- * Draws the receipt to a canvas and returns a PNG.
+ * Makes sure the faces this draw needs are actually in memory.
  *
- * The fonts are self-hosted and loaded by the page, but a canvas draw does not
- * wait for them — without `document.fonts.ready` the first share of a session
- * silently renders in Helvetica.
+ * `document.fonts.ready` is necessary and not sufficient: a `@font-face` is
+ * fetched lazily, when something *rendered* asks for it, and a canvas draw is
+ * not a render — so `ready` resolves perfectly happily having never fetched a
+ * face that only the PNG uses, and the share goes out in Helvetica. Today the
+ * card is on screen behind the share sheet and pulls the faces in for us, which
+ * is exactly the kind of accident that holds until someone shares from anywhere
+ * else. `load()` asks for them by name instead.
+ */
+async function loadFaces(faces: Faces, sizes: number[]): Promise<void> {
+  const specs = Object.values(faces).flatMap((stack) =>
+    sizes.flatMap((px) => [`400 ${px}px ${stack}`, `700 ${px}px ${stack}`]),
+  )
+  // A face that will not load is not a reason to refuse the share: the draw
+  // still produces a legible receipt in the fallback stack.
+  await Promise.all(specs.map((spec) => document.fonts.load(spec).catch(() => [])))
+  await document.fonts.ready
+}
+
+/**
+ * Draws the receipt to a canvas and returns a PNG.
  */
 export async function renderReceipt(input: ReceiptInput, size: ReceiptSize): Promise<Blob> {
   const tokens = readTokens()
-  await document.fonts.ready
+  // One size per family is enough — a face is one file, not one file per size —
+  // but both weights are asked for, because the labels and the figures differ.
+  await loadFaces(tokens.faces, [92])
 
   const canvas = document.createElement('canvas')
   canvas.width = size.width
@@ -606,7 +687,11 @@ export async function renderReceipt(input: ReceiptInput, size: ReceiptSize): Pro
 
   ctx.save()
   ctx.shadowColor = SHADOW.color
-  ctx.shadowBlur = CARD_W * SHADOW.blur
+  // Shadow blur and offset are the one part of canvas state the transform does
+  // not touch — they are output pixels — so both are scaled by hand. Scaling
+  // only the offset, as this did, kept the blur locked to the card's natural
+  // size and quietly broke the lift on any frame the card had to shrink into.
+  ctx.shadowBlur = CARD_W * SHADOW.blur * scale
   ctx.shadowOffsetY = CARD_W * SHADOW.dy * scale
   ctx.fillStyle = tokens.palette.paper
   tornOutline(ctx, receiptSeed(input), CARD_W, cardH)

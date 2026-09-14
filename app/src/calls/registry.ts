@@ -5,20 +5,40 @@ import type { Call } from './types'
  *
  * Authoring rules that are not obvious from the type:
  *
- *  - `title` is a SITUATION, never a question, and never contains the answer. It
- *    renders as three lines of 34px Archivo Black, which is why twelve words is a
- *    hard ceiling rather than a style note.
+ *  - `title` is a SITUATION, never a question, and never contains the answer.
+ *    It sets in Archivo Black at --t-display and must wrap to THREE LINES at
+ *    402px. Word count is not the real constraint — line packing is: "The
+ *    payment matches rent. Everyone says buy." wraps to four lines and
+ *    "Everyone says buy. The payment matches rent." wraps to three, at the same
+ *    44 characters. Every title here was measured in the browser, and a new one
+ *    has to be (`node scripts/shoot.mjs`), because no unit test can do it.
+ *  - `fixed` values set at 22px Courier Prime in a half-width tile: eleven
+ *    characters to the line. Every value here fits on two, which is what keeps
+ *    all ten call screens exactly the same height — 194px of slack under the
+ *    hero at 402x874 — so the control and the lock button land under the same
+ *    thumb every day. A third line eats that slack, and .call clips rather than
+ *    scrolls. Long scene-setting belongs in `assumptions`, which is 11px fine
+ *    print on the outcome screen.
  *  - `variable.start` is deliberately the *wrong* answer, and usually the answer
  *    the real world defaults to (3% auto-enrolment, $0 counter-offer, the whole
- *    repair quote). If the control started on the optimum the gesture would teach
- *    nothing, because the player would never have to move it.
- *  - `crowd` is a real-world prior, not a bell curve. Its shape is the second half
- *    of the lesson: the gap between where the crowd piles up and where the optimum
- *    sits is the thing worth screenshotting. Entries are weights, not percentages
- *    — only their relative size matters to the histogram.
- *  - Money variables carry an empty `unit`. The unit renders immediately after the
- *    figure in the 64px readout, so a dollar amount would come out as "3200$";
- *    the caption underneath names the currency instead.
+ *    repair quote). If the control started on the optimum the gesture would
+ *    teach nothing, because the player would never have to move it.
+ *  - `optimal` is a band only where several answers really are equally right.
+ *    Every value inside it has to beat the position the player started from, or
+ *    the app is congratulating someone for dragging the wrong way — registry
+ *    .test.ts enforces exactly that, and it is the reason call 7's band starts
+ *    at $2,000 rather than at $0.
+ *  - `crowd` is a real-world prior, not a bell curve. Its shape is the second
+ *    half of the lesson: the gap between where the crowd piles up and where the
+ *    optimum sits is the thing worth screenshotting. Entries are weights, not
+ *    percentages — only their relative size matters to the histogram.
+ *  - Every figure in `assumptions` and in `variable.label` must be a number
+ *    compute.ts actually models. The prose is the one place where a scenario
+ *    can rot unnoticed, because nothing renders it next to the maths.
+ *
+ * Money variables carry an empty `unit`: the unit renders immediately after the
+ * figure in the 64px readout, so a dollar amount would come out as "3200$", and
+ * the caption underneath names the currency instead.
  */
 export const CALLS: Call[] = [
   {
@@ -54,14 +74,14 @@ export const CALLS: Call[] = [
     // (people who were actually told), plus the usual round-number pull at 5% and
     // 10% and a small max-out tail at 15%.
     crowd: [14, 2, 3, 22, 6, 9, 13, 2, 5, 1, 12, 1, 3, 1, 1, 5],
-    tomorrow: 'You have $500 spare. Both cards want it.',
+    tomorrow: '$500 a month. Both cards want it.',
     assumptions:
-      '50% of the first 6% of pay, the most common formula, grown at 7% a year to 65 — the match is certain, the 7% is not.',
+      '50% of the first 6% of pay, the most common formula, with both streams invested at 7% a year to 65 — the match is certain, the 7% is not.',
   },
 
   {
     id: 2,
-    title: 'You have $500 spare. Both cards want it.',
+    title: '$500 a month. Both cards want it.',
     domain: 'debt',
     variable: {
       key: 'toLowerRate',
@@ -69,12 +89,14 @@ export const CALLS: Call[] = [
       max: 500,
       step: 25,
       unit: '',
-      label: 'dollars onto the 17.99% card',
+      label: 'dollars onto the 11.99% card',
       start: 250,
     },
+    // The $500 is in the headline, so both tiles can carry a whole card each
+    // rather than cramming two balances and two rates into one.
     fixed: [
-      { k: 'SPARE CASH', v: '$500, ONE TIME' },
-      { k: 'THE CARDS', v: '$4,200 AT 24.99% · $2,800 AT 11.99%' },
+      { k: 'BIG CARD', v: '$4,200 AT 24.99%' },
+      { k: 'SMALL CARD', v: '$2,800 AT 11.99%' },
     ],
     compute: 'debtSplit',
     optimal: 0,
@@ -89,7 +111,7 @@ export const CALLS: Call[] = [
     crowd: [21, 1, 2, 1, 5, 1, 2, 1, 4, 1, 24, 1, 4, 1, 2, 1, 4, 1, 2, 1, 20],
     tomorrow: 'The car dies on a Tuesday. Rent is due Friday.',
     assumptions:
-      'APRs billed monthly at APR/12 the way lenders quote them, minimums continuing on both cards — the interest avoided is arithmetic, not a projection.',
+      '$500 every month until both cards clear, no minimum payments so the split is the only variable, and interest billed at APR/12 the way lenders quote it.',
   },
 
   {
@@ -119,14 +141,16 @@ export const CALLS: Call[] = [
     // a year of spending in a 0.38% savings account and calls it safe. Both tails
     // are wrong; only one of them feels wrong.
     crowd: [26, 15, 10, 12, 5, 4, 10, 3, 3, 2, 3, 1, 6],
-    tomorrow: 'The sofa is zero percent. The paperwork is not.',
+    tomorrow: 'The sofa is zero percent. Until it is not.',
+    // The shock is a model, not a statistic, and it is the half of this call that
+    // decides the answer — so it is stated rather than buried.
     assumptions:
-      'Cash earning a 4.0% high-yield APY against 7% a year invested, over the months you choose — neither rate is guaranteed.',
+      'Costs are half of take-home after federal tax and FICA. Cash earns 4% against 7% invested, and a shock — one year in three, four months of costs on average — is borrowed at 24.99%.',
   },
 
   {
     id: 4,
-    title: 'The sofa is zero percent. The paperwork is not.',
+    title: 'The sofa is zero percent. Until it is not.',
     domain: 'credit',
     variable: {
       key: 'payoffMonths',
@@ -137,9 +161,12 @@ export const CALLS: Call[] = [
       label: 'to clear the balance',
       start: 18,
     },
+    // The length of the promo window is deliberately NOT on a tile. It is the
+    // answer, and the player is meant to find it by dragging until the deferred
+    // interest detonates — which is exactly how the offer works in a store.
     fixed: [
-      { k: 'SOFA', v: '$3,000 ON STORE CREDIT' },
-      { k: 'IF UNPAID', v: '26.99% BACK TO DAY ONE' },
+      { k: 'STORE CREDIT', v: '$3,000' },
+      { k: 'IF UNPAID', v: '26.99% FROM DAY ONE' },
     ],
     compute: 'promoDeadline',
     optimal: { min: 1, max: 12 },
@@ -151,14 +178,14 @@ export const CALLS: Call[] = [
     // half-remember. Almost nobody clusters at the fast end, which is the whole
     // reason deferred interest is profitable.
     crowd: [3, 1, 1, 2, 1, 3, 2, 1, 1, 2, 1, 14, 1, 1, 1, 2, 1, 12, 1, 1, 2, 1, 1, 44],
-    tomorrow: 'The recruiter says the number out loud. You say nothing.',
+    tomorrow: 'The recruiter says a number. You say nothing.',
     assumptions:
-      '0% for twelve months and then 29.99% charged back to day one, the standard deferred-interest structure — a contract term, not a forecast.',
+      '0% until the promotional window closes, then 26.99% charged back to day one on the whole purchase — a contract term, not a forecast. Cash not yet paid earns 4% meanwhile.',
   },
 
   {
     id: 5,
-    title: 'The recruiter says the number out loud. You say nothing.',
+    title: 'The recruiter says a number. You say nothing.',
     domain: 'income',
     variable: {
       key: 'counter',
@@ -171,9 +198,12 @@ export const CALLS: Call[] = [
     },
     fixed: [
       { k: 'THE OFFER', v: '{{salary}}' },
-      { k: 'FUTURE RAISES', v: '3%/YR ON THE NEW BASE' },
+      { k: 'RAISES ON BASE', v: '3% A YEAR' },
     ],
     compute: 'anchorOffer',
+    // Not the literal 8%: a one-in-twenty-one exact match on a salary
+    // negotiation would be false precision, and the model's own peak drifts
+    // with age. Every value in the band is within a few percent of the best.
     optimal: { min: 6, max: 10 },
     rule: 'Counter. The first number anchors every number after.',
     // Roughly half of people accept the first offer without countering, so the bar
@@ -185,7 +215,7 @@ export const CALLS: Call[] = [
     crowd: [45, 2, 2, 2, 3, 10, 2, 2, 3, 1, 11, 1, 1, 1, 1, 5, 1, 1, 1, 1, 4],
     tomorrow: 'The refund felt like a win. It was your own money.',
     assumptions:
-      '3% raises a year on whatever base you agree to, compounded to 65 with savings at 7% — the raises are an assumption, not a promise.',
+      'A point of base compounds through 3% raises and 7% returns to 65. The chance of the offer being pulled is a stylised curve, not a measurement, and it is what stops the dial short of the top.',
   },
 
   {
@@ -203,26 +233,28 @@ export const CALLS: Call[] = [
     },
     fixed: [
       { k: 'PAY', v: '{{salary}}' },
-      { k: 'SAFE HARBOR', v: "90% OF THIS YEAR'S TAX" },
+      { k: 'SAFE HARBOR', v: '90% OF THE TAX' },
     ],
     compute: 'withholding',
     optimal: 90,
     rule: 'Owe a little. A refund is a 0% loan.',
-    // The IRS reports refunds on about two thirds of individual returns, averaging
-    // a little over $3,000 — against a median federal liability in the low five
-    // figures, that is the whole distribution sitting well right of par, which is
-    // why the control opens at 160% and the tall bars are all above 100. The bump
-    // at 100 is the small group who actually tune a W-4; the thin left tail is the
-    // people who owe in April, most of them by accident rather than by plan. Every
-    // bar left of 90 is a penalty the crowd did not know it was paying.
-    crowd: [1, 1, 1, 1, 1, 2, 3, 4, 6, 7, 8, 9, 9, 8, 7, 6, 5, 4, 4, 3, 3, 2, 2, 2, 1],
-    tomorrow: 'Your mechanic leaves a voicemail with a number in it.',
+    // The model's own bill for a $62,000 single filer is about $5,300, and the
+    // IRS's average refund is a little over $3,000 — most of that bill again — so
+    // the mass sits well right of par and the dial opens at 160%, not at 100%. The
+    // spike at 100% is the small group who actually tune a W-4 and aim to break
+    // even; the hump at 110-130 is an ordinary one- or two-thousand-dollar refund;
+    // the lump at 150 is the people who treat withholding as a savings account.
+    // The thin left tail is those who owe in April, nearly all by accident. Every
+    // bar left of 90 is a penalty the crowd does not know it is paying.
+    crowd: [1, 1, 1, 2, 2, 3, 3, 4, 8, 5, 7, 9, 10, 8, 7, 6, 5, 4, 5, 3, 3, 2, 2, 1, 3],
+    tomorrow: 'The mechanic calls with a number.',
     assumptions:
-      'Federal income tax only, single filer, no credits and no other income — the 90% line is the safe harbor in the code, and the penalty above it is the IRS rate on what you still owed.',
+      'Federal income tax only, single filer, no credits and no other income. Below 90% the safe harbor is gone and the IRS charges interest; above it, the extra withheld simply earns nothing.',
   },
+
   {
     id: 7,
-    title: 'Your mechanic leaves a voicemail with a number in it.',
+    title: 'The mechanic calls with a number.',
     domain: 'vehicles',
     variable: {
       key: 'repairSpend',
@@ -234,29 +266,34 @@ export const CALLS: Call[] = [
       start: 3200,
     },
     fixed: [
-      { k: 'CAR WORTH', v: '$5,000 PRIVATE PARTY' },
+      { k: 'CAR WORTH', v: '$5,000' },
       { k: 'OR REPLACE', v: '$22,000 AT $441/MO' },
     ],
     compute: 'repairOrReplace',
-    optimal: { min: 0, max: 2500 },
-    rule: 'Compare the repair to a year of payments.',
-    // Anchoring again, in its purest form: the quote is $3,200 and that is where the
-    // tallest spike sits, because the number a professional says out loud becomes
-    // the question. The second cluster is at $0 — walk away, buy new — and the rest
-    // is round-number bargaining at each $500. Very few people land in the band
-    // between half the car's value and the quote, which is where the answer lives.
+    // $0 is NOT optimal here, and an earlier band that started there said it was:
+    // walking away from a $5,000 car to start a $441 payment is the worst play on
+    // the whole dial. The band is the plateau around half the car's value, where
+    // the repair still buys more months than the payments it defers.
+    optimal: { min: 2000, max: 3000 },
+    rule: 'Fix it up to half the car, then stop.',
+    // Anchoring in its purest form: the quote is the $3,200 the dial opens on, and
+    // that is where the tallest spike sits, because the number a professional says
+    // out loud becomes the question. The second cluster is at $0 — walk away, buy
+    // new — and the rest is round-number bargaining at each $500. Very few people
+    // land in the band just under half the car's value, which is where the answer
+    // lives.
     crowd: [
       10, 1, 1, 2, 1, 6, 1, 1, 1, 1, 9, 1, 1, 1, 1, 5, 1, 1, 1, 1, 7, 1, 1, 1, 1, 4, 1, 1, 1, 1,
       5, 1, 16, 1, 1, 3, 1, 1, 1, 1, 3,
     ],
-    tomorrow: 'Two funds own the same stocks and end up different.',
+    tomorrow: 'Two funds own the same stocks. You pick one.',
     assumptions:
-      'The repair assumed to buy two more years against $520 a month for 60 months at 9.1%, the difference invested at 7% — the two years is an estimate.',
+      '$22,000 financed over 60 months is $441 a month. The repair is assumed to buy about two more years, with the first few hundred dollars buying most of them — a judgement, not a measurement.',
   },
 
   {
     id: 8,
-    title: 'Two funds own the same stocks and end up different.',
+    title: 'Two funds own the same stocks. You pick one.',
     domain: 'investing',
     variable: {
       key: 'expenseRatio',
@@ -268,7 +305,7 @@ export const CALLS: Call[] = [
       start: 54,
     },
     fixed: [
-      { k: 'INVESTED', v: '{{salary}} NOW, THEN 10% A YEAR' },
+      { k: 'INVESTED', v: '{{salary}}, THEN 10%/YR' },
       { k: 'RETURN', v: '7% A YEAR BEFORE FEES' },
     ],
     compute: 'feeDragCall',
@@ -286,14 +323,14 @@ export const CALLS: Call[] = [
       6, 5, 4, 3, 3, 3, 3, 4, 4, 6, 5, 6, 6, 7, 7, 6, 6, 7, 5, 6, 4, 4, 3, 3, 3, 2, 2, 2, 2, 3,
       2, 2, 4, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
     ],
-    tomorrow: 'The mortgage payment matches your rent. Everyone says buy.',
+    tomorrow: 'Everyone says buy. The payment matches rent.',
     assumptions:
-      '10% of pay invested to 65 at 7% a year before fees — the fee is contractual, the 7% is not.',
+      'A year of pay invested now and a tenth of pay a year after that, held to 65 at 7% a year before fees — the fee is contractual, the 7% is not.',
   },
 
   {
     id: 9,
-    title: 'The mortgage payment matches your rent. Everyone says buy.',
+    title: 'Everyone says buy. The payment matches rent.',
     domain: 'housing',
     variable: {
       key: 'years',
@@ -306,7 +343,7 @@ export const CALLS: Call[] = [
     },
     fixed: [
       { k: 'THE HOUSE', v: '$360,000 AT 6.5%' },
-      { k: 'OR RENT', v: '$2,160/MO · 9% ROUND TRIP' },
+      { k: 'OR RENT', v: '$2,160/MO' },
     ],
     compute: 'rentVsBuy',
     optimal: { min: 5, max: 15 },
@@ -318,14 +355,14 @@ export const CALLS: Call[] = [
     // about intentions. This is the one call where the crowd and the optimum mostly
     // agree, and they agree for the wrong reason.
     crowd: [2, 2, 4, 9, 5, 18, 5, 4, 6, 3, 17, 1, 2, 2, 2, 18],
-    tomorrow: 'You went to cash for a month. Stocks did not wait.',
+    tomorrow: 'You sat out a month. Stocks did not wait.',
     assumptions:
-      '$420,000 at 6.4% fixed, 9% round-trip transaction costs, rent rising 3% a year and the down payment otherwise invested at 7% — prices assumed flat in real terms.',
+      '$360,000 with a fifth down, 30 years at 6.5%, 1.5% a year in tax and upkeep, 3% appreciation, 9% round trip to buy and sell, and the down payment otherwise invested at 7%.',
   },
 
   {
     id: 10,
-    title: 'You went to cash for a month. Stocks did not wait.',
+    title: 'You sat out a month. Stocks did not wait.',
     domain: 'investing',
     variable: {
       key: 'daysMissed',
@@ -337,12 +374,15 @@ export const CALLS: Call[] = [
       start: 4,
     },
     fixed: [
-      { k: 'INVESTED', v: '{{salary}} NOW, THEN 10% A YEAR' },
+      { k: 'INVESTED', v: '{{salary}}, THEN 10%/YR' },
       { k: 'HELD', v: 'UNTIL 65 AT 7% A YEAR' },
     ],
     compute: 'timingMarket',
     optimal: 0,
-    rule: 'Stay in. Missing ten days halves your return.',
+    // Not "missing ten days halves your return": the receipt for ten days says
+    // you keep 58%, because the model keeps contributing while you sit out, and
+    // a rule the player's own screen contradicts is worse than no rule.
+    rule: 'Stay in. The best days hide inside the worst.',
     // Almost nobody believes a handful of days can matter, so the hump sits at three
     // to six — "I was only out for a couple of weeks". The spike at 10 is the famous
     // statistic leaking back in, and the block at 0 is the minority who have already
@@ -354,7 +394,7 @@ export const CALLS: Call[] = [
     ],
     tomorrow: 'Your boss pays 50c for every dollar you save.',
     assumptions:
-      '$10,000 held 20 years at 7% a year, each missed day priced at a top-30 single-session gain — an illustration of a real pattern, not a forecast.',
+      'A year of pay invested now and a tenth of pay a year after that, held to 65 at 7%. Missing the best days is modelled as halving the growth at ten of them — the finding, not a forecast.',
   },
 ]
 

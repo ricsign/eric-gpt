@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { CALLS } from '../calls/registry'
+import { stepCount } from '../calls/types'
 import {
   blockPositions,
   blockState,
@@ -285,44 +287,163 @@ describe('tint is addressed by step position, not by drawn block', () => {
   // translation wrong does not throw — it paints the boundary in the wrong
   // place, which on a cliff call is the control teaching the opposite lesson.
 
-  it('covers every position exactly once across the bar', () => {
-    for (const positions of [2, 7, 15, 16, 24, 25, 41, 148]) {
-      const count = Math.min(15, positions)
-      const covered = new Set<number>()
+  /** How the Call screen sizes the bar: one block per step, capped at fifteen. */
+  const blocksFor = (positions: number) => Math.min(15, positions)
+
+  /**
+   * Positions map to the bar linearly only when `max` sits on a step. A tail
+   * position is short, so its fraction is not `p / (positions - 1)` and the
+   * block mapping — like `stepCount` and the crowd array, which are indexed the
+   * same way — does not apply. A test below pins every shipped call to this.
+   */
+  const UNIFORM = RANGES.filter(
+    (r) => Math.abs((r.max - r.min) / r.step - Math.round((r.max - r.min) / r.step)) < 1e-9,
+  )
+
+  /** The value at step position `p`, exactly as a drag would land on it. */
+  const valueAt = (p: number, r: (typeof RANGES)[number], positions: number) =>
+    positionToValue(p / (positions - 1), r.min, r.max, r.step)
+
+  /** Indices of the blocks lit at position `p`. */
+  const litAt = (p: number, count: number, r: (typeof RANGES)[number], positions: number) => {
+    const v = valueAt(p, r, positions)
+    return Array.from({ length: count }, (_, i) => i).filter(
+      (i) => blockState(i, count, v, r.min, r.max) === 'filled',
+    )
+  }
+
+  it('claims no position at which the block is not actually drawn', () => {
+    // The bug this replaces: block 0 claimed position 0 — which is `min`, where
+    // the bar is empty — so every boundary sat one block to the right of where
+    // the call authored it.
+    for (const r of UNIFORM) {
+      const positions = positionCount(r.min, r.max, r.step)
+      const count = blocksFor(positions)
       for (let i = 0; i < count; i++) {
         const [lo, hi] = blockPositions(i, count, positions)
-        expect(lo, `${positions}/${count} block ${i}`).toBeLessThanOrEqual(hi)
-        for (let p = lo; p <= hi; p++) covered.add(p)
+        expect(lo, `${r.name} block ${i}`).toBeLessThanOrEqual(hi)
+        for (let p = lo; p <= hi; p++) {
+          expect(litAt(p, count, r, positions), `${r.name} block ${i} @ position ${p}`).toContain(i)
+        }
       }
-      // Every stop the player can reach is represented somewhere on the bar.
-      expect(covered.size, `positions=${positions}`).toBe(positions)
     }
   })
 
-  it('never paints a penalty position in a safe colour', () => {
-    // The promo call: months 1-12 free, 13-24 retroactive interest. Twenty-four
-    // positions drawn as fifteen blocks, so the boundary falls mid-block.
+  it('gives the block that just lit up the position that lit it', () => {
+    // The tint a player sees at a given value is the tint of the topmost filled
+    // block. If that block does not own the position, the colour of the answer
+    // they are looking at came from somewhere else on the bar.
+    for (const r of UNIFORM) {
+      const positions = positionCount(r.min, r.max, r.step)
+      const count = blocksFor(positions)
+      for (let p = 0; p < positions; p++) {
+        const lit = litAt(p, count, r, positions)
+        if (lit.length === 0) continue
+        const newest = lit[lit.length - 1]
+        const [lo, hi] = blockPositions(newest, count, positions)
+        expect(p, `${r.name} position ${p} -> block ${newest}`).toBeGreaterThanOrEqual(lo)
+        expect(p, `${r.name} position ${p} -> block ${newest}`).toBeLessThanOrEqual(hi)
+      }
+    }
+  })
+
+  it('leaves the positions that draw no block unclaimed', () => {
+    for (const r of UNIFORM) {
+      const positions = positionCount(r.min, r.max, r.step)
+      const count = blocksFor(positions)
+      const ranges = Array.from({ length: count }, (_, i) => blockPositions(i, count, positions))
+      for (let p = 0; p < positions; p++) {
+        if (litAt(p, count, r, positions).length > 0) continue
+        for (let i = 0; i < count; i++) {
+          const [lo, hi] = ranges[i]
+          expect(p >= lo && p <= hi, `${r.name} block ${i} claims empty position ${p}`).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('shows six accent blocks for a six-percent match', () => {
+    // The flagship call, and the reason this translation exists: 0-15% in 1s is
+    // sixteen positions drawn as fifteen blocks. Block 0 is the first percent
+    // contributed, which IS matched. Painting it plain — which addressing it by
+    // position 0 did — tells the player the first dollar is unmatched.
+    const tint = (p: number) => (p >= 1 && p <= 6 ? 'accent' : 'plain') as 'accent' | 'plain'
+    const tints = Array.from({ length: 15 }, (_, i) => blockTintFor(i, 15, 16, tint))
+    expect(tints.filter((t) => t === 'accent')).toHaveLength(6)
+    expect(tints.slice(0, 6).every((t) => t === 'accent')).toBe(true)
+    expect(tints.slice(6).every((t) => t === 'plain')).toBe(true)
+  })
+
+  it('puts a mid-range cliff at the block that crosses it', () => {
+    // The promo call: months 1-24, free through 12, retroactive interest after.
+    // Twenty-four positions drawn as fifteen blocks, so the cliff falls
+    // mid-block and has to be resolved rather than rounded away.
     const positions = 24
     const count = 15
     const tint = (p: number) => (p < 12 ? 'accent' : 'loss') as 'accent' | 'loss'
     const tints = Array.from({ length: count }, (_, i) => blockTintFor(i, count, positions, tint))
-    const firstLoss = tints.indexOf('loss')
-    // Half the range is free, so the boundary belongs near the middle of the
-    // bar — not at block 12 of 15, which is where the untranslated index put it.
-    expect(firstLoss).toBeGreaterThan(5)
-    expect(firstLoss).toBeLessThan(9)
-    // And no block after the boundary may claim to be free.
-    expect(tints.slice(firstLoss).every((t) => t === 'loss')).toBe(true)
-    for (let i = 0; i < count; i++) {
-      const [lo, hi] = blockPositions(i, count, positions)
-      const anyLoss = Array.from({ length: hi - lo + 1 }, (_, k) => tint(lo + k)).includes('loss')
-      if (anyLoss) expect(tints[i], `block ${i} spans a penalty position`).toBe('loss')
+    // Half the range is free, so the boundary belongs at the middle of the bar.
+    expect(tints.indexOf('loss')).toBe(7)
+    expect(tints.slice(7).every((t) => t === 'loss')).toBe(true)
+  })
+
+  it('resolves a straddling block to the worst thing it covers', () => {
+    // A block half inside a penalty zone is drawn as penalty. Painting part of a
+    // cliff in the safe colour is the one mistake a teaching control may not make.
+    for (const r of UNIFORM) {
+      const positions = positionCount(r.min, r.max, r.step)
+      const count = blocksFor(positions)
+      const tint = (p: number) => (p % 3 === 0 ? 'loss' : p % 3 === 1 ? 'plain' : 'accent')
+      for (let i = 0; i < count; i++) {
+        const [lo, hi] = blockPositions(i, count, positions)
+        const covered = Array.from({ length: hi - lo + 1 }, (_, k) => tint(lo + k))
+        const expected = covered.includes('loss')
+          ? 'loss'
+          : covered.includes('plain')
+            ? 'plain'
+            : 'accent'
+        expect(blockTintFor(i, count, positions, tint), `${r.name} block ${i}`).toBe(expected)
+      }
     }
   })
 
-  it('is the identity when a call has exactly as many steps as blocks', () => {
-    for (let i = 0; i < 15; i++) {
-      expect(blockPositions(i, 15, 15)).toEqual([i, i])
+  it('survives a degenerate bar instead of indexing off the end', () => {
+    expect(blockPositions(0, 15, 1)).toEqual([0, 0])
+    expect(blockPositions(0, 0, 16)).toEqual([0, 0])
+    const [lo, hi] = blockPositions(99, 15, 16)
+    expect(lo).toBeLessThanOrEqual(15)
+    expect(hi).toBeLessThanOrEqual(15)
+    expect(lo).toBeLessThanOrEqual(hi)
+  })
+})
+
+describe('the bar and the crowd agree about what a position is', () => {
+  // `positionCount` gives `max` its own slot when no step lands on it, which is
+  // one more position than `stepCount` counts and one more than the crowd array
+  // is long. Everything downstream — the histogram bucket, the block tint, the
+  // seeded distribution — indexes by `(value - min) / step`, so a call with an
+  // uneven max would silently file the top answer in the second-from-top bucket
+  // and paint its tint against the wrong step. No shipped call has one; this is
+  // the guard that keeps it that way.
+  it('holds for every call in the registry', () => {
+    for (const call of CALLS) {
+      const v = call.variable
+      expect(positionCount(v.min, v.max, v.step), `call ${call.id} ${v.key}`).toBe(stepCount(v))
+      expect(call.crowd.length, `call ${call.id} ${v.key} crowd`).toBe(stepCount(v))
+    }
+  })
+
+  it('puts every reachable drag value on a crowd bucket', () => {
+    for (const call of CALLS) {
+      const v = call.variable
+      for (const f of SWEEP) {
+        const value = positionToValue(f, v.min, v.max, v.step)
+        const bucket = (value - v.min) / v.step
+        expect(Math.abs(bucket - Math.round(bucket)), `call ${call.id} @ ${value}`).toBeLessThan(
+          1e-9,
+        )
+        expect(Math.round(bucket)).toBeLessThan(call.crowd.length)
+      }
     }
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SEED_WEIGHT, blendCrowd, modeOf, percentileOf } from './crowd'
 import { tabSummary } from '../screens/Tab'
+import { bucketOf, offsetPercent, tick } from '../ui/Histogram'
 import { CALLS } from '../calls/registry'
 import {
   DEFAULT_PROFILE,
@@ -182,6 +183,62 @@ describe('percentileOf', () => {
     }
   })
 
+  it('does not care what scale the weights are on', () => {
+    // blendCrowd hands over a hundred-unit crowd, but nothing in the signature
+    // says so, and the seeds in the registry are raw weights. A percentile that
+    // moved when every weight was doubled would be reporting the size of the
+    // array rather than the quality of the answer.
+    const d = [0, 50, 0, 50]
+    for (const factor of [0.01, 2, 37, 1000]) {
+      expect(percentileOf(1, d.map((w) => w * factor), 0, 1, 1)).toBeCloseTo(
+        percentileOf(1, d, 0, 1, 1),
+        9,
+      )
+    }
+  })
+
+  it('ranks every answer to every shipped call by distance from the band', () => {
+    // The regression this exists to catch: collapsing a call's range to its
+    // midpoint before scoring. Eight of the ten calls have a band, and under a
+    // midpoint the edges of the band — 3 months of expenses, 6% of pay — score
+    // as misses, which is the single most trust-destroying thing this figure
+    // could do.
+    for (const call of CALLS) {
+      const { min, step } = call.variable
+      const steps = stepCount(call.variable)
+      const crowd = blendCrowd(call.crowd, new Array(steps).fill(0))
+      const band = resolveOptimal(call.optimal, DEFAULT_PROFILE)
+
+      const distanceOf = (v: number) =>
+        typeof band === 'number'
+          ? Math.abs(v - band)
+          : v < band.min
+            ? band.min - v
+            : v > band.max
+              ? v - band.max
+              : 0
+
+      const scored = Array.from({ length: steps }, (_, i) => {
+        const v = min + i * step
+        return { v, d: distanceOf(v), p: percentileOf(v, crowd, min, step, band) }
+      })
+
+      // Every correct answer scores identically, whether it is the middle of the
+      // band or an edge of it.
+      const right = scored.filter((s) => s.d === 0)
+      expect(right.length).toBeGreaterThan(0)
+      for (const s of right) expect(s.p).toBeCloseTo(right[0].p, 9)
+
+      // And nothing further from the band ever scores higher than something
+      // nearer to it.
+      const byDistance = [...scored].sort((a, b) => a.d - b.d)
+      for (let i = 1; i < byDistance.length; i++) {
+        expect(byDistance[i].p).toBeLessThanOrEqual(byDistance[i - 1].p + 1e-9)
+      }
+      expect(right[0].p).toBeGreaterThan(byDistance[byDistance.length - 1].p)
+    }
+  })
+
   it('rewards the better call on a real distribution', () => {
     // Call 1: the crowd piles up on the 3% auto-enrolment default, the match caps
     // at 6%. Answering 6 must beat answering 3 even though 3 is the popular call
@@ -284,6 +341,21 @@ describe('tabSummary', () => {
     expect(s.capture).toBe(1)
   })
 
+  it('ignores practice, whoever forgets to filter it', () => {
+    // A replay of a closed call, or one opened from a shared link, is practice.
+    // If it reached the Tab the hero number would climb on a call the player
+    // already answered — the one number in the product that must not be gameable.
+    const s = tabSummary([
+      result({ verdict: 'optimal', at65: 100_000, delta: 0, day: '2026-09-01' }),
+      result({ verdict: 'optimal', at65: 900_000, delta: 0, day: '2026-09-05', practice: true }),
+      result({ verdict: 'short', at65: 10_000, delta: -90_000, day: '2026-09-06', practice: true }),
+    ])
+    expect(s.total).toBe(100_000)
+    expect(s.played).toBe(1)
+    expect(s.missed).toBe(0)
+    expect(s.streak).toBe(1)
+  })
+
   it('captures the share of the best plays actually taken', () => {
     const s = tabSummary([
       result({ verdict: 'optimal', at65: 100_000, delta: 0 }),
@@ -328,5 +400,84 @@ describe('tabSummary', () => {
       expect(tabSummary([on('2026-09-30'), on('2026-10-01')]).streak).toBe(2)
       expect(tabSummary([on('2026-12-31'), on('2027-01-01')]).streak).toBe(2)
     })
+  })
+})
+
+/* ---- The chart's geometry ----------------------------------------------------
+ * Histogram cannot be rendered in this suite — there is no DOM environment — but
+ * the two functions that decide WHERE things land can be, and they are the only
+ * places in the chart where a wrong answer is silent: a marker one bucket off
+ * points at the wrong number and still looks like a chart.
+ */
+
+describe('the chart lands values where they belong', () => {
+  it('maps every reachable answer to its own bucket, on every shipped call', () => {
+    for (const call of CALLS) {
+      const { min, step } = call.variable
+      const steps = stepCount(call.variable)
+      for (let i = 0; i < steps; i++) {
+        expect(bucketOf(min + i * step, min, step, steps)).toBe(i)
+      }
+      // Off either end of the chart there is no bucket to light up, and lighting
+      // up the nearest one would put the player's bar somewhere they never went.
+      expect(bucketOf(min - step, min, step, steps)).toBe(-1)
+      expect(bucketOf(min + steps * step, min, step, steps)).toBe(-1)
+      expect(bucketOf(Number.NaN, min, step, steps)).toBe(-1)
+    }
+  })
+
+  it('snaps to the nearest bucket, not the one below', () => {
+    // A tenth does not exist in binary: (0.7 - 0) / 0.1 is 6.999999999999999,
+    // and a bucket that truncated would paint the player's bar one step to the
+    // left of the answer they actually gave.
+    for (let i = 0; i <= 30; i++) {
+      expect(bucketOf(i / 10, 0, 0.1, 31)).toBe(i)
+    }
+    // Off-lattice values land on the bucket they are nearest to.
+    expect(bucketOf(0.74, 0, 0.1, 31)).toBe(7)
+    expect(bucketOf(0.76, 0, 0.1, 31)).toBe(8)
+    expect(bucketOf(62.5, 0, 25, 5)).toBe(3)
+  })
+
+  it('puts the optimum marker inside the bucket it belongs to', () => {
+    for (const call of CALLS) {
+      const { min, step } = call.variable
+      const steps = stepCount(call.variable)
+      const width = 100 / steps
+
+      for (let i = 0; i < steps; i++) {
+        const x = offsetPercent(min + i * step, min, step, steps)
+        // Centred in its own slot: the rule has to read as belonging to that
+        // bar rather than to the gap beside it.
+        expect(x).toBeCloseTo((i + 0.5) * width, 9)
+      }
+
+      // A band optimum resolves to a midpoint that can fall between two bars,
+      // which is exactly where the marker should sit.
+      const between = offsetPercent(min + 0.5 * step, min, step, steps)
+      expect(between).toBeGreaterThan(offsetPercent(min, min, step, steps))
+      expect(between).toBeLessThan(offsetPercent(min + step, min, step, steps))
+    }
+  })
+
+  it('never puts the marker outside the plot', () => {
+    for (const v of [-1000, 1000, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const x = offsetPercent(v, 0, 1, 10)
+      expect(x).toBeGreaterThanOrEqual(0)
+      expect(x).toBeLessThanOrEqual(100)
+    }
+    expect(offsetPercent(5, 0, 0, 10)).toBe(0)
+    expect(offsetPercent(5, 0, 1, 0)).toBe(0)
+  })
+
+  it('prints a tick the way the readout above it does', () => {
+    expect(tick(6, '%')).toBe('6%')
+    expect(tick(4.5, 'mo')).toBe('4.5mo')
+    expect(tick(500, '')).toBe('500')
+    // A midpoint that lands on a third of a step must not print fifteen digits
+    // into an 11px axis label.
+    expect(tick(1 / 3, '%')).toBe('0.33%')
+    expect(tick(Number.NaN, '%')).toBe('—')
+    expect(tick(Number.POSITIVE_INFINITY, '%')).toBe('—')
   })
 })

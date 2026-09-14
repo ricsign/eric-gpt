@@ -61,9 +61,7 @@ export function Rules({
       </p>
 
       {earned.length === 0 ? (
-        <p className="rules-empty">
-          Play today's call and the rule behind it lands here, permanently.
-        </p>
+        <p className="rules-empty">Close a call, keep its rule.</p>
       ) : (
         <ol className="rules-list">
           {earned.map((r) => (

@@ -41,7 +41,7 @@
    * the auto-enrolment spike into the noise, and that spike is the lesson.
    * The 3px floor keeps a 1% bucket legible as a tick rather than a hole.
    */
-  height: calc(3px + (100% - 3px) * var(--r));
+  height: calc(3px + (100% - 3px) * var(--fill));
   transform-origin: bottom;
   animation: hist-rise 260ms var(--ease-spring) backwards;
   animation-delay: calc(var(--i) * 12ms);

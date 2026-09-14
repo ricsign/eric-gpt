@@ -143,23 +143,52 @@ export function blockState(
   max: number,
 ): 'filled' | 'empty' {
   if (!Number.isFinite(blockCount) || blockCount <= 0) return 'empty'
-  const filled = Math.round(valueToFraction(value, min, max) * blockCount)
+  // A position can land exactly on a .5 boundary — 0.3 of 3 across fifteen
+  // blocks is exactly 1.5 — and whether the divide returns 1.5 or
+  // 1.4999999999999998 decides whether a block lights up. The nudge makes the
+  // tie resolve upward every time instead of on float luck, and it is the same
+  // threshold `blockPositions` assumes when it works out where a block begins.
+  const filled = Math.round(valueToFraction(value, min, max) * blockCount + FUZZ)
   return blockIndex >= 0 && blockIndex < filled ? 'filled' : 'empty'
+}
+
+/**
+ * The position at which a block first lights up.
+ *
+ * Read straight off `blockState`'s own arithmetic rather than restated in a
+ * different form: block `i` is filled once `round(fraction * blockCount) > i`,
+ * which is once the fraction reaches `(i + 0.5) / blockCount`. Deriving it
+ * keeps the tint map and the fill map from ever disagreeing about where a
+ * block begins — a test brute-forces the agreement on every shipped range.
+ */
+function firstFilledPosition(blockIndex: number, blockCount: number, last: number): number {
+  const at = ((blockIndex + 0.5) * last) / blockCount
+  // Without the fuzz a threshold that lands exactly on a position — 2.5 * 24/15
+  // is exactly 4 — can be nudged to 4.0000000001 by the divide and pushed a
+  // whole position to the right.
+  return Math.min(last, Math.max(0, Math.ceil(at - FUZZ)))
 }
 
 /**
  * The step positions a single block stands for, inclusive.
  *
  * The bar draws at most fifteen blocks whatever the control's range, so on a
- * call with twenty-five steps one block covers nearly two of them. Compute
+ * call with fifty steps one block covers more than three of them. Compute
  * functions author their tints against step positions — "everything before
  * month twelve is free" — which is the only unit they know, so the block index
- * has to be translated before it reaches them. Without this the boundary lands
- * wherever the ratio happens to put it: the promo call's free window was being
- * painted across eighty percent of a bar that is half free.
+ * has to be translated before it reaches them.
  *
- * Returns `[lo, hi]` with `lo <= hi`. A block narrower than the gap between two
- * positions collapses to the nearest single one.
+ * A block stands for the positions at which it is the NEWEST filled one: the
+ * slice of the range that it, and no block after it, represents. That is not
+ * the same as its share of the bar's width. Position 0 is `min`, where the bar
+ * is empty and no block is drawn at all, so no block may claim it — the
+ * previous version handed it to block 0 and shifted every boundary one block
+ * to the right. On the employer-match call that painted the first matched
+ * percent white and showed five accent blocks for a six-percent match, which is
+ * the one thing that call exists to teach.
+ *
+ * Returns `[lo, hi]` with `lo <= hi`. Where there are more blocks than
+ * positions, neighbouring blocks share a position and the range collapses.
  */
 export function blockPositions(
   blockIndex: number,
@@ -167,15 +196,15 @@ export function blockPositions(
   positions: number,
 ): [number, number] {
   const last = Math.max(0, positions - 1)
-  if (blockCount <= 0) return [0, 0]
-  const span = last / blockCount
-  const lo = Math.ceil(blockIndex * span)
-  const hi = Math.floor((blockIndex + 1) * span)
-  if (lo > hi) {
-    const near = Math.round((blockIndex + 0.5) * span)
-    return [Math.min(last, near), Math.min(last, near)]
-  }
-  return [Math.min(last, lo), Math.min(last, hi)]
+  if (blockCount <= 0 || last === 0) return [0, 0]
+  const lo = firstFilledPosition(blockIndex, blockCount, last)
+  // The topmost block runs to the end of the range; every other one stops just
+  // below where its successor takes over.
+  const hi =
+    blockIndex >= blockCount - 1
+      ? last
+      : Math.max(lo, firstFilledPosition(blockIndex + 1, blockCount, last) - 1)
+  return [lo, hi]
 }
 
 /** Ranked worst-first, so a block spanning a boundary can be resolved. */
@@ -391,6 +420,11 @@ export function BlockBar({
     commit(next, true)
   }
 
+  // Spoken only when the call can say something the bare number cannot ("6%",
+  // "$250"). A valuetext that merely restates valuenow makes a screen reader
+  // drop the unit formatting it would otherwise apply to the raw number.
+  const valueText = format ? format(value) : undefined
+
   return (
     <div
       className="blockbar"
@@ -401,7 +435,7 @@ export function BlockBar({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={value}
-      aria-valuetext={format ? format(value) : String(value)}
+      aria-valuetext={valueText}
       aria-disabled={disabled || undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

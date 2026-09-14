@@ -22,7 +22,7 @@ const VERDICT_LABEL: Record<Verdict, string> = {
 export interface TabSummary {
   /** What the player has actually banked at 65. Never falls. */
   total: number
-  /** Calls answered for real. Practice never reaches this function. */
+  /** Calls answered for real. Practice runs are not counted. */
   played: number
   /** How many were the best play. */
   optimal: number
@@ -46,7 +46,14 @@ export interface TabSummary {
  * outcome screen. What a miss costs is carried separately as `missed`, so the
  * screen can still show it without letting it eat the headline.
  */
-export function tabSummary(results: CallResult[]): TabSummary {
+export function tabSummary(all: CallResult[]): TabSummary {
+  // Practice is dropped here rather than trusted to every caller. A replay of a
+  // call the player already closed, or one opened from a shared link, must not
+  // move this number — and "the caller filters it" is a comment, not a
+  // guarantee: the one time it is forgotten, the Tab silently inflates and the
+  // only number the product asks to be believed is wrong.
+  const results = all.filter((r) => !r.practice)
+
   let total = 0
   let optimal = 0
   let missed = 0
@@ -114,14 +121,16 @@ export function Tab({
   profile,
   onClose,
 }: {
-  /** Real answers, oldest first. Practice runs must be filtered out upstream. */
+  /** Answers, oldest first. Practice runs are ignored, wherever they are filtered. */
   results: CallResult[]
   profile: Profile
   onClose: () => void
 }) {
   const summary = useMemo(() => tabSummary(results), [results])
-  // Newest first: the last thing they did is the thing they came to see.
-  const rows = useMemo(() => [...results].reverse(), [results])
+  // Newest first: the last thing they did is the thing they came to see. Same
+  // filter as the summary, or the ledger would show rows the hero number did
+  // not count and the screen would appear to have lost money.
+  const rows = useMemo(() => results.filter((r) => !r.practice).reverse(), [results])
   const years = Math.max(0, RETIRE_AT - profile.age)
 
   // Attendance, not score. A fortnight is long enough that a gap is visible and
@@ -129,7 +138,7 @@ export function Tab({
   // is thirteen empty slots and one filled, which reads as a row with room in
   // it rather than as a screen that failed to load.
   const attendance = useMemo(() => {
-    const played = new Set(results.map((r) => r.day))
+    const played = new Set(results.filter((r) => !r.practice).map((r) => r.day))
     const today = compoundDay()
     return recentDays(14).map((day) => ({
       day,
@@ -202,9 +211,7 @@ export function Tab({
       </section>
 
       {rows.length === 0 ? (
-        <p className="tab-empty">
-          Your first call lands here the moment you lock one in.
-        </p>
+        <p className="tab-empty">Lock in a call and it lands here.</p>
       ) : (
         <ol className="tab-rows">
           {rows.map((r, i) => (

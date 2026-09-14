@@ -79,12 +79,12 @@ export function Receipt({ input }: { input: ReceiptInput }) {
 
         <div className="receipt-rule receipt-rule--double" />
 
-        <div className="receipt-total">
+        <div className="receipt-sum">
           <span className="receipt-k">Total at 65</span>
           <strong className="receipt-hero num">{money(input.at65)}</strong>
         </div>
 
-        <div className="receipt-item receipt-delta" data-verdict={input.verdict}>
+        <div className="receipt-item receipt-delta" data-tone={delta.tone}>
           <span className="receipt-k">{delta.label}</span>
           <span className="receipt-leader" aria-hidden="true" />
           <span className="receipt-v num">{delta.value}</span>

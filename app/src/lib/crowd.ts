@@ -162,19 +162,28 @@ export function percentileOf(
   let worse = 0
   let tied = 0
   let better = 0
+  let mass = 0
 
   for (let i = 0; i < distribution.length; i++) {
     const w = distribution[i]
     if (!Number.isFinite(w) || w <= 0) continue
 
+    mass += w
     const d = distanceTo(valueAt(i, min, step), optimal)
     if (d > mine + FUZZ) worse += w
     else if (d < mine - FUZZ) better += w
     else tied += w
   }
 
-  // The player themselves: one unit of a hundred-unit crowd.
-  tied += 1
+  // No crowd at all: the no-information answer rather than a division by zero.
+  if (mass <= 0) return 50
+
+  // The player themselves, at one percent of whatever crowd was handed over.
+  // Sized off the mass rather than fixed at 1 so the figure cannot move just
+  // because a caller passed raw authored weights instead of blendCrowd's
+  // hundred-unit output — a percentile that changed when every weight was
+  // doubled would be reporting the scale of the array, not the player's call.
+  tied += mass / CROWD_SCALE
 
   const pct = ((worse + tied / 2) / (worse + tied + better)) * 100
   return Math.min(MAX_PERCENTILE, Math.max(MIN_PERCENTILE, pct))

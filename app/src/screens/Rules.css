@@ -90,9 +90,22 @@
  */
 .rules-sealed {
   margin-top: var(--s-6);
-  /* Hairline above the section: background through a gap, as everywhere else. */
-  border-top: 1px solid var(--line);
   padding-top: var(--s-4);
+  position: relative;
+}
+
+/* The divider. A 1px block of the lighter ground rather than a border: a border
+   would round with the box and soften at the ends, and `--line` — which an
+   earlier version asked for here — is not a token, so the rule never drew at
+   all. */
+.rules-sealed::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--hairline);
 }
 
 .rules-seal-list {
@@ -118,19 +131,18 @@
   color: var(--fg-2);
 }
 
-/* The redaction. Sized to a plausible rule so the column has a rhythm rather
-   than a ragged edge, and pushed right so the domains stay left-aligned. */
+/* The redaction: one solid bar, sized to a plausible rule so the column has a
+   rhythm rather than a ragged edge, and pushed right so the domains stay
+   left-aligned. Solid rather than the dashed pattern it used to be, because
+   that pattern was a repeating gradient and this product does not have
+   gradients in it. */
 .rules-seal-bar {
   margin-left: auto;
   width: 46%;
   height: 10px;
   border-radius: 2px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--fg-3) 0 14px,
-    transparent 14px 20px
-  );
-  opacity: 0.35;
+  background: var(--fg-3);
+  opacity: 0.5;
 }
 
 /* A sealed rule is not a rule. It has no place on a printed reference. */

@@ -124,11 +124,12 @@
    where "now" is — without it, an unplayed today is indistinguishable from a
    missed Tuesday. */
 .tab-day[data-today] {
-  box-shadow: inset 0 0 0 2px var(--fg-3);
+  outline: 2px solid var(--fg-3);
+  outline-offset: -2px;
 }
 
 .tab-day[data-played][data-today] {
-  box-shadow: inset 0 0 0 2px var(--bg);
+  outline-color: var(--bg);
 }
 
 .tab-chip {
@@ -145,7 +146,7 @@
 
 .tab-chip[data-v='short'] {
   background: var(--loss);
-  color: #fff;
+  color: var(--fg);
 }
 
 .tab-chip[data-v='over'] {
@@ -153,7 +154,7 @@
      showed this exact result in loss red — a yellow chip for it on the ledger
      would be the product quietly grading the two kinds of miss differently. */
   background: var(--loss);
-  color: #fff;
+  color: var(--fg);
 }
 
 .tab-delta {

@@ -6,16 +6,55 @@ import {
   MAX_LINES,
   TEAR_SEGMENTS,
   barcodeWidths,
+  deltaLine,
   receiptCode,
   receiptLines,
   receiptSeed,
   receiptText,
+  stampText,
   tearClipPath,
   tearPath,
   type ReceiptInput,
 } from './receipt'
 import { CALLS } from '../calls/registry'
 import { COMPUTE } from '../calls/compute'
+import { judge, referenceValue, stepCount, type Verdict } from '../calls/types'
+
+/**
+ * Every receipt the product can actually produce.
+ *
+ * The salary slider runs $15k-$400k and the age the horizon is measured from
+ * moves with the player, so the widest figures on the card come from the corners
+ * of that space, not from the median profile every other fixture uses. Several
+ * invariants below only break out there.
+ */
+function* everyReceipt(): Generator<ReceiptInput> {
+  for (const salary of [15_000, 62_000, 400_000]) {
+    for (const age of [22, 30, 55]) {
+      const profile = { salary, age }
+      for (const call of CALLS) {
+        const compute = COMPUTE[call.compute]
+        const v = call.variable
+        for (let i = 0; i < stepCount(v); i++) {
+          const value = v.min + i * v.step
+          const mine = compute(value, profile)
+          const best = compute(referenceValue(value, call.optimal, profile), profile)
+          yield {
+            callNo: call.id,
+            date: 'SEP 13',
+            title: call.title,
+            verdict: judge(value, call.optimal, profile),
+            value,
+            unit: v.unit,
+            breakdown: mine.breakdown,
+            at65: mine.at65,
+            delta: mine.at65 - best.at65,
+          }
+        }
+      }
+    }
+  }
+}
 
 const SALARY = 62_000
 
@@ -79,6 +118,13 @@ describe('barcodeWidths', () => {
   it('uses the whole range rather than clustering on one width', () => {
     const widths = barcodeWidths(receiptSeed(BASE))
     expect(new Set(widths).size).toBeGreaterThan(2)
+  })
+
+  it('starts and ends on ink', () => {
+    // Even indices are bars. An even module count would end the band on paper,
+    // and a barcode whose right edge is blank floats off the card — visible only
+    // once, in whatever was already shared.
+    expect(BARCODE_MODULES % 2).toBe(1)
   })
 })
 
@@ -176,6 +222,35 @@ describe('receiptLines', () => {
       withPatch({ breakdown: [{ label: 'Your play', value: '3%' }, { label: 'PAY', value: '$1' }] }),
     )
     expect(lines.filter((l) => l.label.toUpperCase() === 'YOUR PLAY')).toHaveLength(1)
+  })
+
+  it('still states the play when the line that stated it falls off the end', () => {
+    // The check used to run on the whole breakdown and the cut ran afterwards,
+    // so a breakdown longer than the card could satisfy the check with a line
+    // that was then thrown away — leaving a receipt that never says what was
+    // chosen. No call ships more than six lines today; one will.
+    const lines = receiptLines(
+      withPatch({
+        value: 9,
+        unit: '%',
+        breakdown: [
+          { label: 'ONE', value: '$1' },
+          { label: 'TWO', value: '$2' },
+          { label: 'THREE', value: '$3' },
+          { label: 'FOUR', value: '$4' },
+          { label: 'FIVE', value: '$5' },
+          { label: 'SIX', value: '$6' },
+          { label: 'RATE', value: '9%' },
+        ],
+      }),
+    )
+    expect(lines).toHaveLength(MAX_LINES)
+    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '9%' })
+  })
+
+  it('still names the play when a call supplies no breakdown at all', () => {
+    const lines = receiptLines(withPatch({ breakdown: [] }))
+    expect(lines).toEqual([{ label: 'YOUR PLAY', value: '3%' }])
   })
 })
 
@@ -339,16 +414,107 @@ describe('receiptText', () => {
 })
 
 describe('receiptCode', () => {
-  it('is fixed width so the barcode digits never reflow', () => {
-    const widths = new Set(
-      [BASE, withPatch({ callNo: 1, value: 0, at65: 0 }), withPatch({ callNo: 9999, value: 15 })].map(
-        (i) => receiptCode(i).length,
-      ),
-    )
-    expect(widths.size).toBe(1)
+  it('is one fixed width across every receipt the product can produce', () => {
+    // The foot is a single no-wrap flex row inside a clip-path, so a code that
+    // grows a digit pushes COMPOUND.DAY off the paper. Sampling three tidy
+    // fixtures said this held; the real ranges say otherwise — the repair call
+    // reaches $4,000 (six digits once scaled to hundredths) and a 22-year-old on
+    // the top of the salary slider clears eight figures at 65.
+    const widths = new Set<number>()
+    let widest: ReceiptInput | null = null
+    for (const input of everyReceipt()) {
+      widths.add(receiptCode(input).length)
+      if (!widest || input.at65 > widest.at65) widest = input
+    }
+    expect(widths.size, `saw code lengths ${[...widths].join(', ')}`).toBe(1)
+    // Proof the sweep actually reached the sizes that used to overflow, rather
+    // than agreeing with itself on a narrow sample.
+    expect(widest!.at65).toBeGreaterThan(9_999_999)
+  })
+
+  it('survives a figure past its own field width without reflowing', () => {
+    const huge = receiptCode(withPatch({ at65: 9.9e12, value: 999_999 }))
+    expect(huge.length).toBe(receiptCode(BASE).length)
+    expect(huge).not.toContain('NaN')
   })
 
   it('keeps a fractional position instead of rounding it away', () => {
     expect(receiptCode(withPatch({ value: 7.5 }))).not.toBe(receiptCode(withPatch({ value: 7 })))
+  })
+
+  it('separates two positions a single step apart on every call', () => {
+    // The code is the only place the exact position is written down. Two
+    // adjacent stops sharing one code would make it decoration.
+    for (const call of CALLS) {
+      const { min, step } = call.variable
+      const a = receiptCode(withPatch({ callNo: call.id, value: min }))
+      const b = receiptCode(withPatch({ callNo: call.id, value: min + step }))
+      expect(a, `call ${call.id}`).not.toBe(b)
+    }
+  })
+})
+
+describe('deltaLine', () => {
+  it('writes a true minus, not a hyphen', () => {
+    // U+002D next to a dollar sign at 13px reads as the dash in the label above
+    // it. The distinction is invisible in a diff, which is why it is asserted.
+    const value = deltaLine(BASE).value
+    expect(value.codePointAt(0)).toBe(0x2212)
+    expect(value).toBe('−$188,400')
+  })
+
+  it('is even, not a loss of nothing, when the money rounds away', () => {
+    // `money` rounds to the dollar. Without a guard a forty-cent gap prints as
+    // "−$0" — a loss, stated in red, of nothing.
+    const line = deltaLine(withPatch({ verdict: 'short', delta: -0.4 }))
+    expect(line.value).toBe('EVEN')
+    expect(line.tone).toBe('even')
+  })
+
+  it('takes its colour from the money, not from the verdict', () => {
+    // An `over` play still loses money on every call in the product. Keying the
+    // tone off `verdict === 'short'` left that loss in neutral ink underneath a
+    // red stamp — the two marks contradicting each other about one number.
+    expect(deltaLine(withPatch({ verdict: 'over', delta: -12_252 })).tone).toBe('loss')
+    expect(deltaLine(withPatch({ verdict: 'optimal', delta: 0 })).tone).toBe('even')
+  })
+})
+
+describe('stampText', () => {
+  it('gives every verdict its own word, and never the loss word for a win', () => {
+    const verdicts: Verdict[] = ['optimal', 'short', 'over']
+    const words = verdicts.map(stampText)
+    expect(new Set(words).size).toBe(verdicts.length)
+    for (const w of words) expect(w).toBe(w.toUpperCase())
+    expect(stampText('optimal')).not.toMatch(/BEHIND|OVERSHOT/)
+  })
+})
+
+describe('every receipt the product can produce', () => {
+  it('fits the card and states the play', () => {
+    for (const input of everyReceipt()) {
+      const lines = receiptLines(input)
+      expect(lines.length, `call ${input.callNo} at ${input.value}`).toBeGreaterThan(0)
+      expect(lines.length).toBeLessThanOrEqual(MAX_LINES)
+      expect(
+        lines.some((l) => l.value.replace(/,/g, '').includes(String(input.value))),
+        `call ${input.callNo} at ${input.value} never states the play`,
+      ).toBe(true)
+      expect(receiptText(input).split('\n')).toHaveLength(5)
+    }
+  })
+
+  it('never stamps a loss beside a gain', () => {
+    // The stamp is a judgement and the figure beneath it is a fact; if a call
+    // ever paid more for a wrong answer at 65, the card would read
+    // "MONEY LEFT BEHIND" directly above "+$12,000" and mean nothing. Today no
+    // call does, and this is the guard on that staying true.
+    for (const input of everyReceipt()) {
+      if (input.verdict === 'optimal') continue
+      expect(
+        deltaLine(input).tone,
+        `call ${input.callNo} at ${input.value} rewards a non-optimal play`,
+      ).not.toBe('gain')
+    }
   })
 })

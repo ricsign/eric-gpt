@@ -1,3 +1,10 @@
+/*
+ * The pure geometry helpers live beside the component that consumes them,
+ * because they are the definition of where a bar sits rather than shared
+ * utilities, and the tests exercise them directly. Same arrangement — and same
+ * reason — as `tabSummary` in screens/Tab.tsx. The cost is fast refresh in dev.
+ */
+/* eslint-disable react/only-export-components */
 import { useMemo, type CSSProperties } from 'react'
 import { modeOf } from '../lib/crowd'
 import type { Verdict } from '../calls/types'
@@ -85,7 +92,10 @@ export function Histogram({
                 key={i}
                 className="hist-bar"
                 data-role={role}
-                data-v={verdict}
+                // Only the player's own bar carries the verdict: it is the only
+                // one that turns red, and fifty copies of the attribute would
+                // imply the rest of the chart cared about it.
+                data-v={role === 'you' ? verdict : undefined}
                 style={barStyle(ratio, i)}
               />
             )
@@ -132,18 +142,20 @@ export function Histogram({
  * 12ms a bar would take longer to draw than anyone looks at it.
  */
 function barStyle(ratio: number, index: number): CSSProperties {
-  return { '--r': ratio, '--i': Math.min(index, 24) } as CSSProperties
+  // Deliberately not named --r: that is the global corner-radius token, and a
+  // local override of it would hand any future child of a bar a radius of 0.42.
+  return { '--fill': ratio, '--i': Math.min(index, 24) } as CSSProperties
 }
 
 /** Nearest bucket to a value, or -1 if it falls outside the distribution. */
-function bucketOf(value: number, min: number, step: number, n: number): number {
+export function bucketOf(value: number, min: number, step: number, n: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return -1
   const i = Math.round((value - min) / step)
   return i >= 0 && i < n ? i : -1
 }
 
 /** Horizontal position of a value, as a percentage of the plot's width. */
-function offsetPercent(value: number, min: number, step: number, n: number): number {
+export function offsetPercent(value: number, min: number, step: number, n: number): number {
   if (n <= 0 || !Number.isFinite(value) || step <= 0) return 0
   // Bars are centred in their slot, so bucket k sits at (k + 0.5) / n.
   const k = (value - min) / step
@@ -151,7 +163,7 @@ function offsetPercent(value: number, min: number, step: number, n: number): num
 }
 
 /** `6%`, `4.5mo`, `500`. Two decimals at most, trailing zeros never printed. */
-function tick(v: number, unit: string): string {
+export function tick(v: number, unit: string): string {
   if (!Number.isFinite(v)) return '—'
   return `${Math.round(v * 100) / 100}${unit}`
 }

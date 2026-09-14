@@ -92,6 +92,13 @@ export function CallScreen({
           blocks={blocks}
           tint={outcome.blockTint}
           label={call.variable.label}
+          // Spoken as the screen writes it, so "66" is heard as "66bps" and not
+          // mistaken for a percent. Calls whose unit is blank pass nothing:
+          // their number is bare on screen too, and inventing a unit for the
+          // screen reader would tell it something the display does not say.
+          format={
+            call.variable.unit ? (v) => `${v}${call.variable.unit}` : undefined
+          }
         />
 
         <output className="call-readout num">

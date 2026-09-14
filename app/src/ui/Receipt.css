@@ -24,6 +24,15 @@
 }
 
 .receipt {
+  /*
+   * The card is its own container so the two no-wrap rows on it — the stamp and
+   * the foot — can size themselves against the paper rather than the viewport.
+   * The card is not a viewport fraction: it sits inside a fixed device frame on
+   * desktop and a real screen on phone, and on a 320pt phone a 13px stamp is
+   * wider than the paper it is stamped on, so the clip-path eats the end of it.
+   */
+  container-type: inline-size;
+
   /* Tone steps are mixed from the two receipt tokens so the paper stays one
      material — a grey borrowed from the dark UI reads as dirt on cream. */
   --ink-2: color-mix(in srgb, var(--ink) 62%, var(--paper));
@@ -156,7 +165,12 @@
  * at 120px, so nothing else on the receipt is permitted to compete with it.
  */
 
-.receipt-total {
+/*
+ * Not `.receipt-total`: the screen that hosts this card already owns that name
+ * for its footer line, and plain CSS has no scope, so the two rules were landing
+ * on each other's elements and laying the footer paragraph out as a flex column.
+ */
+.receipt-sum {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -172,8 +186,8 @@
 .receipt-delta {
   margin-top: -4px;
 }
-.receipt-delta[data-verdict='short'] .receipt-k,
-.receipt-delta[data-verdict='short'] .receipt-v {
+.receipt-delta[data-tone='loss'] .receipt-k,
+.receipt-delta[data-tone='loss'] .receipt-v {
   color: var(--loss);
 }
 
@@ -202,7 +216,13 @@
 
 .receipt-stamp-text {
   display: block;
-  font: 700 13px/1.1 var(--data);
+  /* 13px, until the longest stamp (MONEY LEFT BEHIND, 25 monospace glyphs at
+     0.2em tracking) stops fitting the paper. Courier advances 0.6em, so the
+     row needs ~20x its own font-size plus the stamp's padding. */
+  font-family: var(--data);
+  font-weight: 700;
+  font-size: min(13px, 3.8cqi);
+  line-height: 1.1;
   letter-spacing: 0.2em;
   white-space: nowrap;
   margin-left: 0.2em;
@@ -228,6 +248,9 @@
   gap: var(--s-3);
   margin-top: -4px;
   font: var(--t-data-sm);
+  /* Same reason as the stamp: 32 fixed-width glyphs across, no wrap, and a
+     clip-path with no mercy. Overrides the size in --t-data-sm only. */
+  font-size: min(11px, 3.3cqi);
   letter-spacing: var(--track-data-wide);
   color: var(--ink-3);
 }
