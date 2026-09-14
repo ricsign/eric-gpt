@@ -31,11 +31,11 @@
 
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: 11px;
   background: var(--paper);
   color: var(--ink);
   /* Top padding is the tear depth: the clip bites into it, never into content. */
-  padding: 11px 18px 20px;
+  padding: 11px 18px 16px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -91,7 +91,7 @@
   text-transform: uppercase;
   letter-spacing: var(--track-display);
   text-wrap: balance;
-  margin: 2px 0;
+  margin: 1px 0;
 }
 
 /* ---- Line items ---------------------------------------------------------------
@@ -103,7 +103,7 @@
 .receipt-items {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
 .receipt-item {
@@ -186,7 +186,7 @@
 .receipt-stamp {
   align-self: center;
   max-width: 100%;
-  margin: var(--s-2) 0;
+  margin: 5px 0;
   padding: 6px 12px;
   border-block: 4px double currentcolor;
   transform: rotate(-2.6deg);
@@ -217,7 +217,7 @@
 
 .receipt-barcode {
   width: 100%;
-  height: 36px;
+  height: 34px;
   fill: var(--ink);
 }
 

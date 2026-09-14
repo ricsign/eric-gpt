@@ -68,10 +68,10 @@ export function Receipt({ input }: { input: ReceiptInput }) {
         <div className="receipt-rule" />
 
         <ul className="receipt-items">
-          {lines.map((line) => (
+          {lines.map((line, i) => (
             <li
               className="receipt-item"
-              key={line.label}
+              key={`${line.label}-${i}`}
               data-emphasis={line.emphasis === true ? '' : undefined}
             >
               <span className="receipt-k">{line.label}</span>

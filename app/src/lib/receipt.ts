@@ -349,11 +349,11 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number, maxLines
 
 /* Card-local geometry, in the natural units the design was drawn at. */
 const CARD_W = 860
-const PAD = 62
+const PAD = 48
 const TEAR_D = 26
-const BRAND_H = 92
-const ROW_H = 46
-const TITLE_LH = 52
+const BRAND_H = 84
+const ROW_H = 54
+const TITLE_LH = 50
 
 function tornOutline(ctx: CanvasRenderingContext2D, seed: string, w: number, h: number): void {
   const { top, bottom } = tearSeeds(seed)
@@ -374,7 +374,7 @@ function dashedRule(ctx: CanvasRenderingContext2D, y: number, w: number, ink: st
   ctx.save()
   ctx.globalAlpha = 0.38
   ctx.fillStyle = ink
-  for (let x = PAD; x < w - PAD; x += 9) ctx.fillRect(x, y, 4, 2)
+  for (let x = PAD; x < w - PAD; x += 22) ctx.fillRect(x, y, 10, 5)
   ctx.restore()
 }
 
@@ -409,7 +409,7 @@ function paintCard(
     ctx.fillStyle = palette.ink
     ctx.fillRect(0, TEAR_D, w, BRAND_H)
     ctx.fillStyle = palette.paper
-    ctx.font = font(700, 40, 'data')
+    ctx.font = font(700, 37, 'data')
     ctx.textBaseline = 'middle'
     const track = 20
     drawTracked(ctx, 'COMPOUND', (w - trackedWidth(ctx, 'COMPOUND', track)) / 2, TEAR_D + BRAND_H / 2, track)
@@ -444,20 +444,20 @@ function paintCard(
     if (!measure) {
       const bold = line.emphasis === true
       ctx.fillStyle = palette.ink
-      ctx.font = font(bold ? 700 : 400, 25, 'data')
-      ctx.globalAlpha = bold ? 1 : 0.62
-      drawTracked(ctx, line.label.toUpperCase(), PAD, y, 3)
-      const labelEnd = PAD + trackedWidth(ctx, line.label.toUpperCase(), 3)
-
       ctx.font = font(bold ? 700 : 400, 27, 'data')
+      ctx.globalAlpha = bold ? 1 : 0.62
+      drawTracked(ctx, line.label.toUpperCase(), PAD, y, 4.3)
+      const labelEnd = PAD + trackedWidth(ctx, line.label.toUpperCase(), 4.3)
+
+      ctx.font = font(bold ? 700 : 400, 32, 'data')
       ctx.globalAlpha = 1
-      drawTracked(ctx, line.value, w - PAD, y, 1.6, 'right')
-      const valueStart = w - PAD - trackedWidth(ctx, line.value, 1.6)
+      drawTracked(ctx, line.value, w - PAD, y, 1.3, 'right')
+      const valueStart = w - PAD - trackedWidth(ctx, line.value, 1.3)
 
       // Dotted leader, drawn as discrete squares rather than a dashed stroke so
       // the dots land on whole pixels at every scale.
       ctx.globalAlpha = 0.34
-      for (let x = labelEnd + 14; x < valueStart - 14; x += 10) ctx.fillRect(x, y - 4, 3, 3)
+      for (let x = labelEnd + 15; x < valueStart - 15; x += 12) ctx.fillRect(x, y - 5, 5, 5)
       ctx.globalAlpha = 1
     }
     y += ROW_H
@@ -466,49 +466,49 @@ function paintCard(
   y += 6
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.fillRect(PAD, y, inner, 3)
-    ctx.fillRect(PAD, y + 8, inner, 3)
+    ctx.fillRect(PAD, y, inner, 7)
+    ctx.fillRect(PAD, y + 12, inner, 7)
   }
 
-  y += 84
+  y += 82
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(400, 25, 'data')
+    ctx.font = font(400, 27, 'data')
     ctx.globalAlpha = 0.62
-    drawTracked(ctx, 'TOTAL AT 65', PAD, y - 8, 3)
+    drawTracked(ctx, 'TOTAL AT 65', PAD, y - 10, 4.3)
     ctx.globalAlpha = 1
-    ctx.font = font(700, 78, 'display')
-    ctx.fillText(money(input.at65), PAD, y + 62)
+    ctx.font = font(700, 92, 'display')
+    ctx.fillText(money(input.at65), PAD, y + 74)
   }
 
-  y += 104
+  y += 120
   if (!measure) {
-    ctx.font = font(400, 27, 'data')
+    ctx.font = font(400, 30, 'data')
     ctx.fillStyle = input.verdict === 'short' ? palette.loss : palette.ink
     ctx.globalAlpha = input.verdict === 'short' ? 1 : 0.62
-    drawTracked(ctx, delta.label, PAD, y, 3)
+    drawTracked(ctx, delta.label, PAD, y, 4.3)
     ctx.globalAlpha = 1
     ctx.fillStyle = input.verdict === 'short' ? palette.loss : palette.ink
-    drawTracked(ctx, delta.value, w - PAD, y, 1.6, 'right')
+    drawTracked(ctx, delta.value, w - PAD, y, 1.3, 'right')
   }
 
-  y += 96
+  y += 112
   if (!measure) {
     const ink = input.verdict === 'optimal' ? palette.ink : palette.loss
     ctx.save()
     ctx.translate(w / 2, y)
     ctx.rotate((-2.6 * Math.PI) / 180)
-    ctx.font = font(700, 38, 'data')
-    const track = 9
+    ctx.font = font(700, 33, 'data')
+    const track = 7
     const text = `*** ${stamp} ***`
     const tw = trackedWidth(ctx, text, track)
     const boxW = tw + 64
     ctx.globalAlpha = 0.9
     ctx.fillStyle = ink
-    ctx.fillRect(-boxW / 2, -44, boxW, 4)
-    ctx.fillRect(-boxW / 2, -34, boxW, 2)
-    ctx.fillRect(-boxW / 2, 26, boxW, 2)
-    ctx.fillRect(-boxW / 2, 32, boxW, 4)
+    ctx.fillRect(-boxW / 2, -46, boxW, 4)
+    ctx.fillRect(-boxW / 2, -38, boxW, 4)
+    ctx.fillRect(-boxW / 2, 34, boxW, 4)
+    ctx.fillRect(-boxW / 2, 42, boxW, 4)
     ctx.textBaseline = 'middle'
     drawTracked(ctx, text, -tw / 2, 0, track)
     ctx.textBaseline = 'alphabetic'
@@ -531,12 +531,12 @@ function paintCard(
   y += 88 + 36
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(400, 24, 'data')
+    ctx.font = font(400, 27, 'data')
     ctx.globalAlpha = 0.6
-    drawTracked(ctx, receiptCode(input), PAD, y, 5)
+    drawTracked(ctx, receiptCode(input), PAD, y, 4.3)
     ctx.globalAlpha = 1
-    ctx.font = font(700, 24, 'data')
-    drawTracked(ctx, DOMAIN.toUpperCase(), w - PAD, y, 5, 'right')
+    ctx.font = font(700, 27, 'data')
+    drawTracked(ctx, DOMAIN.toUpperCase(), w - PAD, y, 4.3, 'right')
   }
 
   return y + 30 + TEAR_D
