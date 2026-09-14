@@ -73,14 +73,19 @@
 
 /* The number is the hero here, as it is on every screen. 40px rather than the
    64px of a question readout: this screen has two of them, and neither is the
-   answer to anything. */
+   answer to anything.
+
+   White, not accent, and for the same reason the question readout is white:
+   the accent has to keep meaning something, and two 40px acid figures above
+   two acid bars above an acid button is four things shouting it. Accent is
+   left to the fills and the commit. */
 .salary-value {
   /* `output` is inline by default, and a transform on an inline box does
      nothing — which is why the old drag-scale never actually fired. */
   display: block;
   font: var(--t-hero);
   font-size: 40px;
-  color: var(--accent);
+  color: var(--fg);
   /* The figure rewrites on every frame of a drag; a number that reflows its
      own container as it counts is the clearest tell that this is a web page. */
   font-variant-numeric: tabular-nums;
@@ -111,6 +116,10 @@
 .salary-fill {
   height: 100%;
   background: var(--accent);
+  /* At the bottom of either range the fill is zero wide, and a bar with
+     nothing in it reads as disabled rather than as set to its minimum. The
+     sliver says the control is alive and shows where the value sits. */
+  min-width: var(--s-1);
 }
 
 /* ---- Prose -------------------------------------------------------------------

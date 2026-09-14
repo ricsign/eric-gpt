@@ -24,6 +24,8 @@ export function Home({
   answered,
   nextId,
   onStart,
+  onList,
+  onProgress,
 }: {
   calls: Call[]
   /** Ids already answered for real. Practice runs do not unlock anything. */
@@ -31,6 +33,8 @@ export function Home({
   /** The next unanswered question, or null when the set is finished. */
   nextId: number | null
   onStart: (id: number) => void
+  onList: () => void
+  onProgress: () => void
 }) {
   const done = answered.size
 
@@ -84,6 +88,20 @@ export function Home({
           )
         })}
       </ol>
+
+      {/* The list is the thing people keep, so it cannot be reachable only
+          from the end of a question. Someone returning on day four lands here,
+          and without these they would have no route back to what they saved. */}
+      {done > 0 && (
+        <nav className="home-nav">
+          <button className="home-link press" onClick={onList}>
+            My list
+          </button>
+          <button className="home-link press" onClick={onProgress}>
+            Progress
+          </button>
+        </nav>
+      )}
 
       <p className="home-foot data-sm">Estimates, not advice.</p>
     </div>

@@ -144,10 +144,11 @@ function Dial({
       PageDown: -page,
     }
 
+    const delta = by[e.key]
     let next: number | null = null
     if (e.key === 'Home') next = min
     else if (e.key === 'End') next = max
-    else if (e.key in by) next = clamp(value + by[e.key], min, max)
+    else if (delta !== undefined) next = clamp(value + delta, min, max)
     if (next === null) return
 
     // Arrows and the Page keys scroll this screen otherwise, which slides the
@@ -178,8 +179,8 @@ function Dial({
         aria-valuetext={`${format(value)} ${caption}`}
         onKeyDown={onKeyDown}
         onPointerDown={(e) => {
-          // Capture, so a thumb that slides off the bar — or off the screen —
-          // keeps driving the value instead of dropping the drag.
+          // The bar keeps the pointer, so a thumb that slides off it — or off
+          // the screen — keeps driving the value instead of dropping the drag.
           e.currentTarget.setPointerCapture(e.pointerId)
           setDragging(true)
           setFromPointer(e.clientX)

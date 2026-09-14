@@ -1,3 +1,11 @@
+/*
+ * My progress.
+ *
+ * Two things on the page: how far through the set you are, and the set. There
+ * is no chart, no strip and no meter, because a count of ten, a line of ten
+ * rows and a bar of ten segments would all be the same fact drawn three times.
+ */
+
 .tab {
   height: 100%;
   display: flex;
@@ -28,148 +36,98 @@
   margin: calc(var(--s-3) * -1) 0;
 }
 
-/* The whole screen exists for this number. */
+/*
+ * "4 of 10". White, not acid lime: the accent in this product means money you
+ * did not leave behind, and spending it on a progress count would make the
+ * one colour that carries a meaning stop carrying it.
+ */
 .tab-hero {
   font: var(--t-hero);
   font-variant-numeric: tabular-nums;
-  color: var(--accent);
+  color: var(--fg);
   line-height: 0.9;
+  flex: none;
   margin-top: calc(var(--s-2) * -1);
 }
 
-.tab-hero[data-zero] {
-  color: var(--fg-3);
-}
-
-.tab-sub {
+.tab-note {
+  font: var(--t-body);
   color: var(--fg-2);
-  margin-top: calc(var(--s-1) * -1);
+  flex: none;
+  margin-top: calc(var(--s-2) * -1);
 }
 
-.tab-stats {
-  flex: none;
-  margin-top: var(--s-2);
-}
-
-.tab-missed {
-  color: var(--loss);
-  flex: none;
+/* The finished errands are the affirmative half of the line, so they are the
+   half that gets the accent. */
+.tab-note-done {
+  color: var(--accent);
 }
 
 .tab-empty {
   font: var(--t-body);
   color: var(--fg-3);
-  margin-top: var(--s-4);
+  flex: none;
 }
 
-/* ---- Ledger ------------------------------------------------------------------ */
+/* ---- The set ------------------------------------------------------------------
+ * Ten rows, in the order they are asked. Every row is present from the first
+ * day: the point of the screen is that the thing you are inside of is finite,
+ * and a list that grows one row a day hides exactly that.
+ */
 
-.tab-rows {
+.tab-set {
   display: flex;
   flex-direction: column;
   /* Hairlines are the background showing through a 1px gap, never a border. */
   gap: 1px;
   margin-top: var(--s-2);
+  flex: none;
 }
 
-.tab-row {
+.tab-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--s-3);
-  min-height: var(--tap);
-  padding: var(--s-2) var(--s-3);
+  padding: var(--s-4);
   background: var(--surface);
   border-radius: var(--r);
+}
+
+/* Unreached rows stay legible. Fading a question to nothing would leave most
+   of the page as grey bars on the first day, which is the state the reader is
+   in for longest. */
+.tab-item:not([data-answered]) {
+  opacity: 0.55;
+}
+
+.tab-q {
+  display: flex;
+  gap: var(--s-3);
+  align-items: baseline;
 }
 
 .tab-no {
+  color: var(--fg-3);
+  flex: none;
+  min-width: 2ch;
+}
+
+.tab-q-t {
+  font: var(--t-body);
+  color: var(--fg);
+}
+
+.tab-waiting {
+  color: var(--fg-3);
+  /* Sits under the question rather than beside it, so the number column stays
+     straight down the page whatever length the questions are. */
+  padding-left: calc(2ch + var(--s-3));
+}
+
+/* The errand. Body copy, because it is the one thing on this screen meant to
+   be read as an instruction rather than scanned as state. */
+.tab-do {
+  font: var(--t-body);
   color: var(--fg-2);
-  flex: none;
-}
-
-.tab-date {
-  flex: none;
-}
-
-/* A solid block, not a pill: a verdict should land, not reassure. */
-
-/* ---- Attendance --------------------------------------------------------------
- * Fourteen slots, one per day, filled where a call was closed. This is the only
- * thing on the Tab that has something to show before the first play, which is
- * the point: a ledger with one row in it needs a surface around it that reads
- * as empty-on-purpose rather than as a screen that failed to load.
- */
-.tab-attendance {
-  margin-top: var(--s-5);
-}
-
-.tab-days {
-  display: flex;
-  gap: 4px;
-  margin-top: var(--s-2);
-}
-
-.tab-day {
-  flex: 1;
-  height: 28px;
-  border-radius: 3px;
-  background: var(--surface);
-}
-
-.tab-day[data-played] {
-  background: var(--accent);
-}
-
-/* Today is outlined whether or not it has been played, so the strip always says
-   where "now" is — without it, an unplayed today is indistinguishable from a
-   missed Tuesday. */
-.tab-day[data-today] {
-  outline: 2px solid var(--fg-3);
-  outline-offset: -2px;
-}
-
-.tab-day[data-played][data-today] {
-  outline-color: var(--bg);
-}
-
-.tab-chip {
-  margin-left: auto;
-  padding: 4px var(--s-2);
-  border-radius: var(--r);
-  font: var(--t-data-sm);
-  text-transform: uppercase;
-  letter-spacing: var(--track-data-wide);
-  color: var(--on-accent);
-  background: var(--accent);
-  flex: none;
-}
-
-.tab-chip[data-v='short'] {
-  background: var(--loss);
-  color: var(--fg);
-}
-
-.tab-chip[data-v='over'] {
-  /* The same red as 'short'. A miss is a miss, and the outcome screen already
-     showed this exact result in loss red — a yellow chip for it on the ledger
-     would be the product quietly grading the two kinds of miss differently. */
-  background: var(--loss);
-  color: var(--fg);
-}
-
-.tab-delta {
-  font: var(--t-data);
-  font-variant-numeric: tabular-nums;
-  color: var(--accent);
-  flex: none;
-  min-width: 7ch;
-  text-align: right;
-}
-
-.tab-delta[data-v='short'] {
-  color: var(--loss);
-}
-
-.tab-delta[data-v='over'] {
-  color: var(--loss);
+  padding-left: calc(2ch + var(--s-3));
 }

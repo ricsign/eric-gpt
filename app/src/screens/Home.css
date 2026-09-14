@@ -94,6 +94,24 @@
   opacity: 0.55;
 }
 
+.home-nav {
+  display: flex;
+  gap: 1px;
+  margin-top: var(--s-4);
+}
+
+.home-link {
+  flex: 1;
+  background: var(--surface);
+  border: 0;
+  color: var(--fg-2);
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  padding: var(--s-4);
+  min-height: 48px;
+}
+
 .home-foot {
   margin-top: var(--s-5);
   color: var(--fg-3);

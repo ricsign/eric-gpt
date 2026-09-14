@@ -1,4 +1,9 @@
-.receipt-screen {
+/*
+ * The share screen. Everything here is furniture around the napkin: the card is
+ * the only thing on this screen anyone is looking at.
+ */
+
+.share {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -8,22 +13,56 @@
   background: var(--bg);
 }
 
-.receipt-actions {
+.share-actions {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
 }
 
-.receipt-btn-row {
+/* ---- The guess toggle ---------------------------------------------------------
+ * Opt-in, and written as an offer rather than a setting. It sits above the
+ * share buttons because it changes what those buttons send, and a control that
+ * changes the payload after you have read the payload is a trap.
+ */
+
+.share-guess {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding-inline: var(--s-1);
+  color: var(--fg-2);
+}
+
+.share-guess-box {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--fg-3);
+  border-radius: var(--r);
+}
+
+.share-guess[aria-pressed='true'] {
+  color: var(--fg);
+}
+
+.share-guess[aria-pressed='true'] .share-guess-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- Share ------------------------------------------------------------------- */
+
+.share-btn-row {
   display: flex;
   gap: var(--s-2);
 }
-.receipt-btn-row > .receipt-btn {
+.share-btn-row > .share-btn {
   flex: 1;
 }
 
-.receipt-btn {
+.share-btn {
   height: var(--tap);
   background: var(--surface);
   color: var(--fg);
@@ -33,7 +72,7 @@
   letter-spacing: var(--track-data);
 }
 
-.receipt-btn--primary {
+.share-btn--primary {
   height: 56px;
   background: var(--accent);
   color: var(--on-accent);
@@ -41,16 +80,16 @@
   letter-spacing: var(--track-display);
 }
 
-.receipt-fail {
+.share-fail {
   color: var(--loss);
 }
 
 /* ---- Tomorrow teaser ---------------------------------------------------------
- * Every receipt ends with the next hook. Never "come back!" — always the
- * scenario itself, because the scenario is the reason to come back.
+ * Every share ends with the next hook. Never "come back" — always the scene
+ * itself, because the scene is the reason to come back.
  */
 
-.receipt-next {
+.share-next {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -62,14 +101,10 @@
   border-radius: var(--r);
 }
 
-.receipt-next-teaser {
+.share-next-teaser {
   font: var(--t-title);
   text-transform: uppercase;
   letter-spacing: var(--track-display);
   color: var(--fg);
   text-wrap: balance;
-}
-
-.receipt-total {
-  color: var(--fg-3);
 }

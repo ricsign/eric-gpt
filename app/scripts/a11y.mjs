@@ -46,15 +46,24 @@ const page = await ctx.newPage()
 page.on('pageerror', (e) => failures.push('pageerror: ' + e.message))
 await page.goto(BASE, { waitUntil: 'networkidle' })
 
-// First run: the salary track must be operable from the keyboard.
-await page.locator('.salary-track').first().focus()
-const salaryBefore = await page.locator('.salary-value').first().innerText()
-for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight')
-const salaryAfter = await page.locator('.salary-value').first().innerText()
-console.log('salary by keyboard:', salaryBefore, '->', salaryAfter)
-if (salaryBefore === salaryAfter) failures.push('salary track is not keyboard-operable')
+// Home is the entry now. Every question in the set must be reachable by
+// keyboard, and the open one must actually be operable.
+const homeRows = await page.locator('.home-row').count()
+console.log('home rows:', homeRows)
+if (homeRows !== 10) failures.push(`home lists ${homeRows} questions, expected 10`)
 
-await page.locator('.salary-go').first().click()
+const openRow = page.locator('.home-row[data-state="open"]').first()
+await openRow.waitFor({ state: 'visible', timeout: 10000 })
+await openRow.focus()
+const focused = await page.evaluate(() => document.activeElement?.className ?? '')
+if (!focused.includes('home-row')) failures.push('the open question cannot take keyboard focus')
+// A locked row must be genuinely disabled, not just dimmed — a keyboard user
+// tabbing into a button that silently does nothing has no way to know why.
+const lockedEnabled = await page.evaluate(() =>
+  [...document.querySelectorAll('.home-row[data-state="locked"]')].some((b) => !b.disabled),
+)
+if (lockedEnabled) failures.push('a locked question is focusable but does nothing')
+await page.keyboard.press('Enter')
 await page.waitForTimeout(600)
 
 // The call control. This is the one that matters most.

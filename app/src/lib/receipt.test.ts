@@ -1,135 +1,290 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BARCODE_MAX_WIDTH,
-  BARCODE_MIN_WIDTH,
-  BARCODE_MODULES,
-  MAX_LINES,
+  DOMAIN,
+  PEN_SEGMENTS,
   TEAR_SEGMENTS,
-  barcodeWidths,
-  deltaLine,
-  receiptCode,
-  receiptLines,
-  receiptSeed,
-  receiptText,
-  stampText,
+  answerNote,
+  answerText,
+  dialText,
+  isMoneyDial,
+  napkinSeed,
+  napkinText,
+  penPathData,
+  penStroke,
+  shareHandle,
+  shareLink,
+  sharedFacts,
   tearClipPath,
   tearPath,
-  type ReceiptInput,
+  type NapkinInput,
 } from './receipt'
 import { CALLS } from '../calls/registry'
-import { COMPUTE } from '../calls/compute'
-import { judge, referenceValue, stepCount, type Verdict } from '../calls/types'
+import { resolveOptimal, type Profile } from '../calls/types'
+
+const ORIGIN = 'napkin.example'
 
 /**
- * Every receipt the product can actually produce.
+ * The profiles the corners of the product live at.
  *
- * The salary slider runs $15k-$400k and the age the horizon is measured from
- * moves with the player, so the widest figures on the card come from the corners
- * of that space, not from the median profile every other fixture uses. Several
- * invariants below only break out there.
+ * The salary slider runs $15k-$400k and one answer — the April refund — is a
+ * function of the tax bill, so the widest and narrowest phrasings come from the
+ * ends of that range, not from the median profile every other fixture uses.
  */
-function* everyReceipt(): Generator<ReceiptInput> {
-  for (const salary of [15_000, 62_000, 400_000]) {
-    for (const age of [22, 30, 55]) {
-      const profile = { salary, age }
-      for (const call of CALLS) {
-        const compute = COMPUTE[call.compute]
-        const v = call.variable
-        for (let i = 0; i < stepCount(v); i++) {
-          const value = v.min + i * v.step
-          const mine = compute(value, profile)
-          const best = compute(referenceValue(value, call.optimal, profile), profile)
-          yield {
-            callNo: call.id,
+const PROFILES: Profile[] = [
+  { salary: 15_000, age: 22 },
+  { salary: 62_000, age: 30 },
+  { salary: 400_000, age: 55 },
+]
+
+/** Every napkin the product can actually produce, guess shown and hidden. */
+function* everyNapkin(): Generator<{ input: NapkinInput; profile: Profile }> {
+  for (const profile of PROFILES) {
+    for (const [i, call] of CALLS.entries()) {
+      const v = call.variable
+      for (const withGuess of [false, true]) {
+        yield {
+          profile,
+          input: {
+            questionNo: i + 1,
             date: 'SEP 13',
-            title: call.title,
-            verdict: judge(value, call.optimal, profile),
-            value,
-            unit: v.unit,
-            breakdown: mine.breakdown,
-            at65: mine.at65,
-            delta: mine.at65 - best.at65,
-          }
+            scene: call.title,
+            question: call.question,
+            givens: sharedFacts(call.fixed),
+            answer: answerText(resolveOptimal(call.optimal, profile), v),
+            note: answerNote(v),
+            rule: call.rule,
+            guess: withGuess ? dialText(v.start, v) : undefined,
+          },
         }
       }
     }
   }
 }
 
-const SALARY = 62_000
-
-const BASE: ReceiptInput = {
-  callNo: 13,
+const BASE: NapkinInput = {
+  questionNo: 4,
   date: 'SEP 13',
-  title: 'Your boss pays 50c for every dollar you save.',
-  verdict: 'short',
-  value: 3,
-  unit: '%',
-  breakdown: [
-    // A compute function is free to put the player's pay on the receipt — it is
-    // their own screen. The share text must still never carry it off the device.
-    { label: 'PAY', value: '$62,000' },
-    { label: 'YOUR COST', value: '$155/mo' },
-    { label: 'MATCH CAPTURED', value: '$930' },
-    { label: 'LEFT ON THE TABLE', value: '$930', emphasis: true },
-    { label: 'INSTANT RETURN', value: '50%' },
-    { label: 'YEARS TO 65', value: '35' },
-    { label: 'ONE LINE TOO MANY', value: '—' },
+  scene: 'The sofa is 0% interest. Until it is not.',
+  question: 'How fast do you have to clear it?',
+  givens: [
+    { k: 'ON THE STORE CARD', v: '$3,000' },
+    { k: 'MISS THE DEADLINE', v: '26.99% FROM DAY ONE' },
   ],
-  at65: 412_900,
-  delta: -188_400,
+  answer: '12mo or less',
+  note: 'to pay it off in full',
+  rule: 'Treat 0% as a deadline, not a discount.',
 }
 
-const withPatch = (patch: Partial<ReceiptInput>): ReceiptInput => ({ ...BASE, ...patch })
+const withPatch = (patch: Partial<NapkinInput>): NapkinInput => ({ ...BASE, ...patch })
 
-describe('barcodeWidths', () => {
-  it('is deterministic for one seed', () => {
-    expect(barcodeWidths('13:3:412900')).toEqual(barcodeWidths('13:3:412900'))
-  })
-
-  it('produces the declared number of modules, all drawable', () => {
-    const widths = barcodeWidths(receiptSeed(BASE))
-    expect(widths).toHaveLength(BARCODE_MODULES)
-    // A zero-width module would leave a gap in the band; anything wider than the
-    // cap swallows its neighbours and the barcode reads as a solid block.
-    for (const w of widths) {
-      expect(Number.isInteger(w)).toBe(true)
-      expect(w).toBeGreaterThanOrEqual(BARCODE_MIN_WIDTH)
-      expect(w).toBeLessThanOrEqual(BARCODE_MAX_WIDTH)
+describe('where a share points', () => {
+  it('is never the domain that belongs to another company', () => {
+    // compound.day was a string literal in receipt.ts and it is a live AI
+    // workspace product, so every successful share this app ever made handed
+    // the recipient to a competitor. The literal is the bug; this is the guard
+    // on it never coming back.
+    expect(DOMAIN).not.toContain('compound.day')
+    for (const { input } of everyNapkin()) {
+      expect(napkinText(input, ORIGIN)).not.toContain('compound.day')
     }
   })
 
-  it('is not the same barcode for every player', () => {
-    // The whole point of deriving bars from the result: if two different plays on
-    // the same call produced identical bars, the barcode would be wallpaper.
-    const a = barcodeWidths(receiptSeed(BASE))
-    const b = barcodeWidths(receiptSeed(withPatch({ value: 6, at65: 601_300, delta: 0 })))
-    expect(a).not.toEqual(b)
+  it('prints a bare host and the question, with nothing to track', () => {
+    const handle = shareHandle(4, ORIGIN)
+    expect(handle).toBe('napkin.example/4')
+    expect(handle.toLowerCase()).not.toContain('http')
+    expect(handle).not.toContain('?')
+    expect(handle).not.toContain('utm')
   })
 
-  it('separates results that differ only in one field', () => {
-    const seen = new Set<string>()
-    for (const value of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
-      seen.add(barcodeWidths(receiptSeed(withPatch({ value }))).join(''))
+  it('sends the text, the card and the copied link to the same place', () => {
+    // Three code paths used to derive their address three ways — a literal, a
+    // literal again, and location.origin — so a build served anywhere but the
+    // canonical host disagreed with itself in the one place nobody checks.
+    for (const n of [1, 4, 10]) {
+      expect(napkinText(withPatch({ questionNo: n }), ORIGIN)).toContain(shareHandle(n, ORIGIN))
+      expect(shareLink(n, ORIGIN).endsWith(shareHandle(n, ORIGIN))).toBe(true)
     }
-    expect(seen.size).toBe(9)
   })
 
-  it('uses the whole range rather than clustering on one width', () => {
-    const widths = barcodeWidths(receiptSeed(BASE))
-    expect(new Set(widths).size).toBeGreaterThan(2)
+  it('copies an absolute URL, and keeps a configured scheme', () => {
+    expect(shareLink(4, ORIGIN)).toBe('https://napkin.example/4')
+    expect(shareLink(4, 'https://napkin.example')).toBe('https://napkin.example/4')
+    expect(shareLink(4, 'https://napkin.example/')).toBe('https://napkin.example/4')
+    // A local origin is served over http and rewriting it to https would make
+    // every shared link from a dev build dead on arrival.
+    expect(shareLink(4, 'http://localhost:5173')).toBe('http://localhost:5173/4')
   })
 
-  it('starts and ends on ink', () => {
-    // Even indices are bars. An even module count would end the band on paper,
-    // and a barcode whose right edge is blank floats off the card — visible only
-    // once, in whatever was already shared.
-    expect(BARCODE_MODULES % 2).toBe(1)
+  it('says nothing rather than something broken when there is no origin', () => {
+    // Server-side, or a test: `location` does not exist and nothing was
+    // configured. A half-formed address on the card is worse than no address.
+    expect(shareHandle(4, '')).toBe('')
+    expect(napkinText(BASE, '')).not.toContain('//')
+    for (const line of napkinText(BASE, '').split('\n')) {
+      expect(line.trim().length).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('sharedFacts', () => {
+  it('drops every given the profile would fill in', () => {
+    // The share artifact carries a question and its answer. Three of the ten
+    // question records set a tile to the reader's own pay, and those tiles are
+    // dropped rather than resolved — the rule is "no placeholder survives",
+    // not "not the salary one", so a new token cannot leak by being new.
+    for (const call of CALLS) {
+      for (const fact of sharedFacts(call.fixed)) {
+        expect(fact.v, `question ${call.id}`).not.toContain('{{')
+      }
+    }
+  })
+
+  it('leaves every question with a setup', () => {
+    // The givens are what make the answer surprising instead of arbitrary. A
+    // question that lost both tiles would ship a card with no numbers on it
+    // but the answer.
+    for (const call of CALLS) {
+      expect(sharedFacts(call.fixed).length, `question ${call.id}`).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('isMoneyDial', () => {
+  it('separates the dollar dials from the one that counts days', () => {
+    // Five dials carry an empty unit, because the readout prints the unit
+    // straight after the figure and "3200$" is not a thing. Four of them are
+    // dollars and the fifth counts the market's best days; nothing in the
+    // record says which is which. Renaming a dial breaks this rather than
+    // quietly printing "$4" for four missed days.
+    const bare = CALLS.filter((c) => c.variable.unit === '')
+    expect(bare).toHaveLength(5)
+    expect(bare.filter((c) => !isMoneyDial(c.variable)).map((c) => c.variable.key)).toEqual([
+      'daysMissed',
+    ])
+  })
+
+  it('never calls a dial with a unit money', () => {
+    for (const call of CALLS) {
+      if (call.variable.unit !== '') expect(isMoneyDial(call.variable)).toBe(false)
+    }
+  })
+})
+
+describe('dialText', () => {
+  it('reads a negative refund as a bill, not as negative money', () => {
+    // The refund dial runs through zero. "-$2,000 back in April" is a double
+    // negative that reads as a refund, which is the opposite of the truth.
+    const refund = CALLS.find((c) => c.variable.key === 'refund')!.variable
+    expect(dialText(-2000, refund)).toBe('owe $2,000')
+    expect(dialText(0, refund)).toBe('$0')
+    expect(dialText(3000, refund)).toBe('$3,000')
+  })
+
+  it('puts a unit straight after the figure, the way the dial does', () => {
+    const months = CALLS.find((c) => c.variable.key === 'payoffMonths')!.variable
+    expect(dialText(18, months)).toBe('18mo')
+  })
+})
+
+describe('answerText', () => {
+  /**
+   * The exact words that leave the app, for all ten.
+   *
+   * Locked rather than derived, because this is copy: a change here is a
+   * change to the sentence a stranger reads, and it should have to be typed
+   * out on purpose. The April refund is a regular expression because its
+   * answer is a function of the tax bill and genuinely differs per person.
+   */
+  const GOLDEN: Record<number, string | RegExp> = {
+    1: '6% or more',
+    2: '$0',
+    3: '3mo to 6mo',
+    4: '12mo or less',
+    5: '6% to 10%',
+    6: /^(\$0|owe \$[\d,]+)$/,
+    7: '$2,000 to $3,000',
+    8: '$3',
+    9: '5yr or more',
+    10: '0',
+  }
+
+  it('says each answer the way the dial said it', () => {
+    const profile = { salary: 62_000, age: 30 }
+    for (const call of CALLS) {
+      const said = answerText(resolveOptimal(call.optimal, profile), call.variable)
+      const want = GOLDEN[call.id]
+      if (typeof want === 'string') expect(said, `question ${call.id}`).toBe(want)
+      else expect(said, `question ${call.id}`).toMatch(want)
+    }
+  })
+
+  it('states a band that reaches the end of the dial as an open one', () => {
+    // Saving more than the employer match is not a mistake, and "6% to 15%"
+    // says it is — 15% is where the control stops, not where the answer does.
+    const match = CALLS.find((c) => c.variable.key === 'contribution')!
+    expect(answerText(resolveOptimal(match.optimal, PROFILES[1]), match.variable)).toBe(
+      '6% or more',
+    )
+    const promo = CALLS.find((c) => c.variable.key === 'payoffMonths')!
+    expect(answerText(resolveOptimal(promo.optimal, PROFILES[1]), promo.variable)).toBe(
+      '12mo or less',
+    )
+  })
+
+  it('states a band with room on both sides as a span', () => {
+    const fund = CALLS.find((c) => c.variable.key === 'months')!
+    expect(answerText(resolveOptimal(fund.optimal, PROFILES[1]), fund.variable)).toBe('3mo to 6mo')
+  })
+
+  it('is a readable figure on every question, at every profile', () => {
+    for (const profile of PROFILES) {
+      for (const call of CALLS) {
+        const said = answerText(resolveOptimal(call.optimal, profile), call.variable)
+        expect(said, `question ${call.id}`).toMatch(/\d/)
+        expect(said).not.toContain('NaN')
+        expect(said).not.toContain('undefined')
+        if (isMoneyDial(call.variable)) expect(said).toContain('$')
+      }
+    }
+  })
+})
+
+describe('answerNote', () => {
+  it('does not say the unit twice', () => {
+    // The dial prints a bare number above its caption, so four captions open
+    // with the word "dollars". The card prints "$3", and leaving the word in
+    // gives "$3, dollars a year per $10,000" — which reads as a typo.
+    for (const call of CALLS) {
+      const note = answerNote(call.variable)
+      if (isMoneyDial(call.variable)) {
+        expect(note.toLowerCase(), `question ${call.id}`).not.toMatch(/^dollars\b/)
+      }
+      expect(note.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('leaves a captioned unit alone', () => {
+    const match = CALLS.find((c) => c.variable.key === 'contribution')!.variable
+    expect(answerNote(match)).toBe('of your pay, into retirement')
+    const fee = CALLS.find((c) => c.variable.key === 'expenseRatio')!.variable
+    expect(answerNote(fee)).toBe('a year per $10,000 invested')
+  })
+})
+
+describe('napkinSeed', () => {
+  it('follows from what is printed, not from who printed it', () => {
+    // Two people sharing the same fact share the same paper, which is correct
+    // now that the card is about the fact. It also means turning the optional
+    // guess on does not re-tear the paper under the sender's hands.
+    expect(napkinSeed(BASE)).toBe(napkinSeed(withPatch({ guess: '18mo' })))
+    expect(napkinSeed(BASE)).not.toBe(napkinSeed(withPatch({ answer: '6mo or less' })))
+    expect(napkinSeed(BASE)).not.toBe(napkinSeed(withPatch({ questionNo: 5 })))
   })
 })
 
 describe('tearPath', () => {
-  const seed = 'receipt/top'
+  const seed = 'napkin/top'
 
   it('is deterministic for one seed', () => {
     expect(tearPath(seed, 100, TEAR_SEGMENTS)).toEqual(tearPath(seed, 100, TEAR_SEGMENTS))
@@ -189,159 +344,105 @@ describe('tearPath', () => {
 })
 
 describe('tearClipPath', () => {
-  it('closes a polygon with both edges torn from the same receipt seed', () => {
-    const css = tearClipPath(receiptSeed(BASE), 11)
+  it('closes a polygon with both edges torn from the same napkin seed', () => {
+    const css = tearClipPath(napkinSeed(BASE), 11)
     expect(css.startsWith('polygon(')).toBe(true)
     expect(css.split(',')).toHaveLength((TEAR_SEGMENTS + 1) * 2)
     // The bottom edge is measured from the far side so the card can be any height.
     expect(css).toContain('calc(100% - ')
-    expect(css).toBe(tearClipPath(receiptSeed(BASE), 11))
+    expect(css).toBe(tearClipPath(napkinSeed(BASE), 11))
   })
 
   it('gives a different card a different tear', () => {
-    expect(tearClipPath(receiptSeed(BASE), 11)).not.toBe(
-      tearClipPath(receiptSeed(withPatch({ callNo: 14 })), 11),
+    expect(tearClipPath(napkinSeed(BASE), 11)).not.toBe(
+      tearClipPath(napkinSeed(withPatch({ questionNo: 5 })), 11),
     )
   })
 })
 
-describe('receiptLines', () => {
-  it('opens with the play and never overflows the card', () => {
-    const lines = receiptLines(BASE)
-    expect(lines).toHaveLength(MAX_LINES)
-    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '3%' })
+describe('penStroke', () => {
+  it('is deterministic for one seed', () => {
+    expect(penStroke('a', 100)).toEqual(penStroke('a', 100))
   })
 
-  it('formats a money variable as money rather than a bare number', () => {
-    const lines = receiptLines(withPatch({ unit: '', value: 350 }))
-    expect(lines[0].value).toBe('$350')
-  })
-
-  it('does not print the play twice when a compute function already supplied it', () => {
-    const lines = receiptLines(
-      withPatch({ breakdown: [{ label: 'Your play', value: '3%' }, { label: 'PAY', value: '$1' }] }),
+  it('draws a different line for a different card', () => {
+    // The whole point of deriving the mark from the card: two different facts
+    // that drew the same stroke would make the stroke wallpaper.
+    expect(penStroke(napkinSeed(BASE), 100)).not.toEqual(
+      penStroke(napkinSeed(withPatch({ answer: '6mo or less' })), 100),
     )
-    expect(lines.filter((l) => l.label.toUpperCase() === 'YOUR PLAY')).toHaveLength(1)
   })
 
-  it('still states the play when the line that stated it falls off the end', () => {
-    // The check used to run on the whole breakdown and the cut ran afterwards,
-    // so a breakdown longer than the card could satisfy the check with a line
-    // that was then thrown away — leaving a receipt that never says what was
-    // chosen. No call ships more than six lines today; one will.
-    const lines = receiptLines(
-      withPatch({
-        value: 9,
-        unit: '%',
-        breakdown: [
-          { label: 'ONE', value: '$1' },
-          { label: 'TWO', value: '$2' },
-          { label: 'THREE', value: '$3' },
-          { label: 'FOUR', value: '$4' },
-          { label: 'FIVE', value: '$5' },
-          { label: 'SIX', value: '$6' },
-          { label: 'RATE', value: '9%' },
-        ],
-      }),
-    )
-    expect(lines).toHaveLength(MAX_LINES)
-    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '9%' })
+  it('runs left to right without doubling back', () => {
+    for (const s of ['a', 'b', 'c', 'd']) {
+      const pts = penStroke(s, 240)
+      expect(pts).toHaveLength(PEN_SEGMENTS + 1)
+      for (let i = 1; i < pts.length; i++) {
+        expect(pts[i].x).toBeGreaterThan(pts[i - 1].x)
+      }
+      expect(pts[0].x).toBe(0)
+      expect(pts[pts.length - 1].x).toBeCloseTo(240, 6)
+    }
   })
 
-  it('still names the play when a call supplies no breakdown at all', () => {
-    const lines = receiptLines(withPatch({ breakdown: [] }))
-    expect(lines).toEqual([{ label: 'YOUR PLAY', value: '3%' }])
-  })
-})
-
-describe('the receipt states the play exactly once', () => {
-  // The receipt is the thing that leaves the app. A number printed twice under
-  // two labels reads as two findings, and the reader has no way to tell that
-  // "YOUR PLAY 63bps" and "EXPENSE RATIO 63 BP" are the same fact.
-  it('drops the generic line when a compute line already states the position', () => {
-    const lines = receiptLines({
-      ...BASE,
-      value: 63,
-      unit: 'bps',
-      breakdown: [
-        { label: 'EXPENSE RATIO', value: '63 BP' },
-        { label: 'FEE / MO NOW', value: '$48' },
-        { label: 'LOST TO FEES BY 65', value: '$349,976', emphasis: true },
-      ],
-    })
-    expect(lines.map((l) => l.label)).not.toContain('YOUR PLAY')
-    expect(lines[0]).toEqual({ label: 'EXPENSE RATIO', value: '63 BP' })
+  it('starts and ends on the baseline', () => {
+    // A stroke that stops mid-wobble looks cut off rather than lifted, and the
+    // amount it is off by is exactly the amount it looks broken by.
+    for (const s of ['a', 'b', 'c', 'd']) {
+      const pts = penStroke(s, 100)
+      expect(pts[0].y).toBe(0)
+      expect(pts[pts.length - 1].y).toBe(0)
+    }
   })
 
-  it('keeps the generic line when nothing else states the position', () => {
-    const lines = receiptLines({
-      ...BASE,
-      value: 8,
-      unit: '%',
-      breakdown: [
-        { label: 'YEAR ONE', value: '$4,960' },
-        { label: 'OFFER PULLED', value: '35%' },
-        { label: 'LIFETIME AT 65', value: '$1.2M', emphasis: true },
-      ],
-    })
-    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '8%' })
-  })
-
-  it('never lets the emphasised line stand in for the play', () => {
-    // A call whose headline figure happens to equal the position must still say
-    // what was chosen, or the receipt loses the play entirely.
-    const lines = receiptLines({
-      ...BASE,
-      value: 12,
-      unit: ' MONTHS',
-      breakdown: [
-        { label: 'PAYMENT / MO', value: '$250' },
-        { label: 'DEFERRED INTEREST', value: '12', emphasis: true },
-      ],
-    })
-    expect(lines[0]).toEqual({ label: 'YOUR PLAY', value: '12 MONTHS' })
-  })
-
-  it('states the position exactly once on every real call', () => {
-    // Not "no two lines share a number" — at 3% on call 1 the employer adds
-    // $930 and the player misses exactly $930, which are two different facts
-    // that happen to be equal. What must never happen is the *position* being
-    // printed twice, because that is one fact wearing two labels.
-    for (const call of CALLS) {
-      const compute = COMPUTE[call.compute]
-      for (const value of [call.variable.min, call.variable.start, call.variable.max]) {
-        const { breakdown } = compute(value, { salary: SALARY, age: 30 })
-        const lines = receiptLines({ ...BASE, value, unit: call.variable.unit, breakdown })
-        const stating = lines.filter((l) => {
-          const first = l.value.match(/-?\d[\d,]*(?:\.\d+)?/)
-          return first !== null && Number(first[0].replace(/,/g, '')) === value
-        })
-        // The generic line is only there to fill a gap. If a compute line
-        // already carries the position, adding "YOUR PLAY" alongside it prints
-        // one fact twice — which is the whole bug this guards.
-        // At zero every line reads as the play, so the generic one stays —
-        // see the guard in statesPlay.
-        if (value !== 0 && stating.some((l) => l.label !== 'YOUR PLAY')) {
-          expect(
-            lines.map((l) => l.label),
-            `call ${call.id} at ${value}: ${stating.map((l) => l.label).join(' / ')}`,
-          ).not.toContain('YOUR PLAY')
-        }
-        // Whatever else it says, it has to say what was chosen. Compared with
-        // the thousands separators stripped, and on magnitude only: a dial that
-        // runs through zero carries its sign in the label — the refund call
-        // prints "YOU OWE IN APRIL $2,000", because "-$2,000 owed" is a double
-        // negative that reads as a refund.
-        expect(
-          lines.some((l) => l.value.replace(/,/g, '').includes(String(Math.abs(value)))),
-          `call ${call.id} at ${value} never states the play`,
-        ).toBe(true)
+  it('stays inside the band the renderer sized for it', () => {
+    for (const s of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      for (const p of penStroke(s, 100, 60)) {
+        expect(Math.abs(p.y)).toBeLessThanOrEqual(1)
       }
     }
   })
+
+  it('wanders rather than jumps', () => {
+    // White noise at this amplitude reads as a zigzag, which is the one thing a
+    // pen stroke must not look like. Each point steps from the last one.
+    for (const s of ['a', 'b', 'c', 'd', 'e', 'f']) {
+      const pts = penStroke(s, 100, 60)
+      for (let i = 1; i < pts.length; i++) {
+        expect(Math.abs(pts[i].y - pts[i - 1].y)).toBeLessThan(0.5)
+      }
+    }
+  })
+
+  it('is not a straight line', () => {
+    const ys = penStroke('wobble', 100, 40).map((p) => p.y)
+    expect(Math.max(...ys.map(Math.abs))).toBeGreaterThan(0.2)
+  })
+
+  it('scales x with width and leaves y normalised', () => {
+    const small = penStroke('s', 100)
+    const large = penStroke('s', 1000)
+    small.forEach((p, i) => {
+      expect(large[i].x).toBeCloseTo(p.x * 10, 6)
+      expect(large[i].y).toBe(p.y)
+    })
+  })
 })
 
-describe('receiptText', () => {
+describe('penPathData', () => {
+  it('is one move and then lines, centred on the baseline it is given', () => {
+    const d = penPathData(penStroke('a', 100, 3), 1)
+    expect(d.startsWith('M')).toBe(true)
+    expect(d.match(/M/g)).toHaveLength(1)
+    expect(d.match(/L/g)).toHaveLength(3)
+    expect(d).not.toContain('NaN')
+    // Both ends sit on the baseline, so the path opens and closes at `mid`.
+    expect(d.startsWith('M0.00,1.000')).toBe(true)
+    expect(d.endsWith('1.000')).toBe(true)
+  })
+})
+
+describe('napkinText', () => {
   // Pictographs, dingbats, flag letters, variation selectors, the keycap combiner
   // and the ZWJ that joins emoji sequences — plus arrows, which are not emoji but
   // render as one in several chat clients. Written as alternatives rather than one
@@ -350,175 +451,78 @@ describe('receiptText', () => {
   const EMOJI =
     /[\u{1F000}-\u{1FAFF}]|[\u{2600}-\u{27BF}]|[\u{2B00}-\u{2BFF}]|[\u{1F1E6}-\u{1F1FF}]|[\u{2190}-\u{21FF}]|[\u{FE00}-\u{FE0F}]|\u{20E3}|\u{200D}/u
 
-  const CASES: ReceiptInput[] = [
-    BASE,
-    withPatch({ verdict: 'optimal', value: 6, at65: 601_300, delta: 0 }),
-    withPatch({ verdict: 'over', value: 15, at65: 900_000, delta: 298_700 }),
-    withPatch({ callNo: 1, unit: '', value: 500 }),
-  ]
-
-  it('is exactly five lines', () => {
+  it('is exactly five lines, none of them empty', () => {
     // Five is the ceiling iMessage and WhatsApp show without a "read more"; a
     // sixth line is the same as not sending the last one.
-    for (const input of CASES) {
-      expect(receiptText(input).split('\n')).toHaveLength(5)
-    }
-  })
-
-  it('has no empty lines', () => {
-    for (const input of CASES) {
-      for (const line of receiptText(input).split('\n')) {
-        expect(line.trim().length).toBeGreaterThan(0)
-      }
+    for (const { input } of everyNapkin()) {
+      const lines = napkinText(input, ORIGIN).split('\n')
+      expect(lines).toHaveLength(5)
+      for (const line of lines) expect(line.trim().length).toBeGreaterThan(0)
     }
   })
 
   it('contains no emoji', () => {
-    for (const input of CASES) {
-      expect(EMOJI.test(receiptText(input))).toBe(false)
+    for (const { input } of everyNapkin()) {
+      expect(EMOJI.test(napkinText(input, ORIGIN))).toBe(false)
     }
   })
 
-  it('carries a bare domain and never a URL', () => {
-    for (const input of CASES) {
-      const text = receiptText(input)
-      expect(text).toContain('compound.day')
-      expect(text.toLowerCase()).not.toContain('http')
-      expect(text).not.toContain('?')
-      expect(text).not.toContain('utm')
+  it('leads with the question and then answers it', () => {
+    const text = napkinText(BASE, ORIGIN)
+    expect(text).toContain('How fast do you have to clear it?')
+    expect(text).toContain('The answer: 12mo or less, to pay it off in full.')
+  })
+
+  it('never carries the sender’s score', () => {
+    // The thing the whole rewrite exists to remove. No projection, no gap to
+    // the right answer, no verdict — and not the guess either: five lines are
+    // all spoken for and the fact is worth more than the confession.
+    for (const { input } of everyNapkin()) {
+      const text = napkinText(withPatch({ ...input, guess: '18mo' }), ORIGIN)
+      expect(text).not.toContain('18mo')
+      expect(text.toLowerCase()).not.toContain('at 65')
+      expect(text.toLowerCase()).not.toContain('left behind')
     }
   })
 
-  it('names the call number', () => {
-    expect(receiptText(BASE)).toContain('No.13')
-    expect(receiptText(withPatch({ callNo: 142 }))).toContain('No.142')
-  })
-
-  it('leads with the verdict and the headline number', () => {
-    expect(receiptText(BASE)).toContain('LEFT BEHIND')
-    expect(receiptText(BASE)).toContain('$413K at 65')
-    expect(receiptText(CASES[1])).toContain('OPTIMAL PLAY')
-    expect(receiptText(CASES[2])).toContain('OVERSHOT')
-  })
-
-  it('never discloses the player’s salary', () => {
-    // The share artifact is a game result. Anything that could be reverse-read as
-    // personal financial data stays on the device — including via a breakdown
-    // line a compute function put on the on-screen card.
-    for (const input of CASES) {
-      const text = receiptText(input)
-      expect(text).not.toContain(String(SALARY))
-      expect(text).not.toContain('62,000')
-      expect(text).not.toContain('$62K')
-      for (const line of input.breakdown) expect(text).not.toContain(line.value)
+  it('never discloses the reader’s pay', () => {
+    // Anything that could be reverse-read as personal financial data stays on
+    // the device. `sharedFacts` makes that structural; this is the proof.
+    for (const { input, profile } of everyNapkin()) {
+      const text = napkinText(input, ORIGIN)
+      expect(text).not.toContain(String(profile.salary))
+      expect(text).not.toContain(profile.salary.toLocaleString('en-US'))
+      expect(text).not.toContain('{{')
     }
+  })
+
+  it('carries the disclaimer', () => {
+    for (const { input } of everyNapkin()) {
+      expect(napkinText(input, ORIGIN)).toContain('Estimates, not advice.')
+      expect(napkinText(input, '')).toContain('Estimates, not advice.')
+    }
+  })
+
+  it('ends on an invitation with nothing to track', () => {
+    const last = napkinText(BASE, ORIGIN).split('\n')[4]
+    expect(last).toContain(shareHandle(4, ORIGIN))
+    expect(last.toLowerCase()).not.toContain('http')
+    expect(last).not.toContain('?')
+    expect(last).not.toContain('utm')
   })
 })
 
-describe('receiptCode', () => {
-  it('is one fixed width across every receipt the product can produce', () => {
-    // The foot is a single no-wrap flex row inside a clip-path, so a code that
-    // grows a digit pushes COMPOUND.DAY off the paper. Sampling three tidy
-    // fixtures said this held; the real ranges say otherwise — the repair call
-    // reaches $4,000 (six digits once scaled to hundredths) and a 22-year-old on
-    // the top of the salary slider clears eight figures at 65.
-    const widths = new Set<number>()
-    let widest: ReceiptInput | null = null
-    for (const input of everyReceipt()) {
-      widths.add(receiptCode(input).length)
-      if (!widest || input.at65 > widest.at65) widest = input
-    }
-    expect(widths.size, `saw code lengths ${[...widths].join(', ')}`).toBe(1)
-    // Proof the sweep actually reached the sizes that used to overflow, rather
-    // than agreeing with itself on a narrow sample.
-    expect(widest!.at65).toBeGreaterThan(9_999_999)
-  })
-
-  it('survives a figure past its own field width without reflowing', () => {
-    const huge = receiptCode(withPatch({ at65: 9.9e12, value: 999_999 }))
-    expect(huge.length).toBe(receiptCode(BASE).length)
-    expect(huge).not.toContain('NaN')
-  })
-
-  it('keeps a fractional position instead of rounding it away', () => {
-    expect(receiptCode(withPatch({ value: 7.5 }))).not.toBe(receiptCode(withPatch({ value: 7 })))
-  })
-
-  it('separates two positions a single step apart on every call', () => {
-    // The code is the only place the exact position is written down. Two
-    // adjacent stops sharing one code would make it decoration.
-    for (const call of CALLS) {
-      const { min, step } = call.variable
-      const a = receiptCode(withPatch({ callNo: call.id, value: min }))
-      const b = receiptCode(withPatch({ callNo: call.id, value: min + step }))
-      expect(a, `call ${call.id}`).not.toBe(b)
-    }
-  })
-})
-
-describe('deltaLine', () => {
-  it('writes a true minus, not a hyphen', () => {
-    // U+002D next to a dollar sign at 13px reads as the dash in the label above
-    // it. The distinction is invisible in a diff, which is why it is asserted.
-    const value = deltaLine(BASE).value
-    expect(value.codePointAt(0)).toBe(0x2212)
-    expect(value).toBe('−$188,400')
-  })
-
-  it('is even, not a loss of nothing, when the money rounds away', () => {
-    // `money` rounds to the dollar. Without a guard a forty-cent gap prints as
-    // "−$0" — a loss, stated in red, of nothing.
-    const line = deltaLine(withPatch({ verdict: 'short', delta: -0.4 }))
-    expect(line.value).toBe('EVEN')
-    expect(line.tone).toBe('even')
-  })
-
-  it('takes its colour from the money, not from the verdict', () => {
-    // An `over` play still loses money on every call in the product. Keying the
-    // tone off `verdict === 'short'` left that loss in neutral ink underneath a
-    // red stamp — the two marks contradicting each other about one number.
-    expect(deltaLine(withPatch({ verdict: 'over', delta: -12_252 })).tone).toBe('loss')
-    expect(deltaLine(withPatch({ verdict: 'optimal', delta: 0 })).tone).toBe('even')
-  })
-})
-
-describe('stampText', () => {
-  it('gives every verdict its own word, and never the loss word for a win', () => {
-    const verdicts: Verdict[] = ['optimal', 'short', 'over']
-    const words = verdicts.map(stampText)
-    expect(new Set(words).size).toBe(verdicts.length)
-    for (const w of words) expect(w).toBe(w.toUpperCase())
-    expect(stampText('optimal')).not.toMatch(/BEHIND|OVERSHOT/)
-  })
-})
-
-describe('every receipt the product can produce', () => {
-  it('fits the card and states the play', () => {
-    for (const input of everyReceipt()) {
-      const lines = receiptLines(input)
-      expect(lines.length, `call ${input.callNo} at ${input.value}`).toBeGreaterThan(0)
-      expect(lines.length).toBeLessThanOrEqual(MAX_LINES)
-      // Magnitude only: a dial running through zero puts its sign in the
-      // label, so the refund call states -2000 as "YOU OWE IN APRIL $2,000".
-      expect(
-        lines.some((l) => l.value.replace(/,/g, '').includes(String(Math.abs(input.value)))),
-        `call ${input.callNo} at ${input.value} never states the play`,
-      ).toBe(true)
-      expect(receiptText(input).split('\n')).toHaveLength(5)
-    }
-  })
-
-  it('never stamps a loss beside a gain', () => {
-    // The stamp is a judgement and the figure beneath it is a fact; if a call
-    // ever paid more for a wrong answer at 65, the card would read
-    // "MONEY LEFT BEHIND" directly above "+$12,000" and mean nothing. Today no
-    // call does, and this is the guard on that staying true.
-    for (const input of everyReceipt()) {
-      if (input.verdict === 'optimal') continue
-      expect(
-        deltaLine(input).tone,
-        `call ${input.callNo} at ${input.value} rewards a non-optimal play`,
-      ).not.toBe('gain')
+describe('every napkin the product can produce', () => {
+  it('says what was asked, what the answer is, and where to try it', () => {
+    for (const { input } of everyNapkin()) {
+      const where = `question ${input.questionNo}`
+      expect(input.question.endsWith('?'), where).toBe(true)
+      expect(input.answer.length, where).toBeGreaterThan(0)
+      expect(input.note.length, where).toBeGreaterThan(0)
+      expect(input.rule.length, where).toBeGreaterThan(0)
+      expect(input.givens.length, where).toBeGreaterThan(0)
+      for (const g of input.givens) expect(g.v, where).not.toContain('{{')
+      expect(napkinText(input, ORIGIN)).toContain(input.answer)
     }
   })
 })

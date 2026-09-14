@@ -1,15 +1,19 @@
 /*
- * The receipt. The only paper in the product, the only shadow in the product,
+ * The napkin. The only paper in the product, the only shadow in the product,
  * and the only thing here designed to be looked at somewhere other than here.
  *
  * The whole card is tuned for 120px wide in a feed. At that size everything
- * below 12px is texture, not text, so the design commits to exactly three marks
- * that must survive the shrink — the ink brand band, the figure at 65, and the
- * stamp — and lets the rest become the grey noise that makes a receipt read as a
- * receipt from across the room.
+ * below 12px is texture, not text, so the design commits to exactly two marks
+ * that must survive the shrink — the question and the answer under its pen
+ * stroke — and lets the rest become the grey noise that makes paper read as
+ * paper from across the room.
+ *
+ * Ink and paper only. The accent is the dark UI's voice and it does not carry
+ * onto cream; --loss is gone from this file entirely, along with the verdict it
+ * used to colour.
  */
 
-.receipt-lift {
+.napkin-lift {
   /*
    * Rotation lives on the wrapper and the clip on the card: a filter applied to
    * the same element as its clip-path is drawn from the unclipped box in some
@@ -23,106 +27,113 @@
   margin-inline: auto;
 }
 
-.receipt {
+.napkin {
   /*
-   * The card is its own container so the two no-wrap rows on it — the stamp and
-   * the foot — can size themselves against the paper rather than the viewport.
-   * The card is not a viewport fraction: it sits inside a fixed device frame on
-   * desktop and a real screen on phone, and on a 320pt phone a 13px stamp is
-   * wider than the paper it is stamped on, so the clip-path eats the end of it.
+   * The card is its own container so the two lines that must not wrap — the
+   * head and the foot — can size themselves against the paper rather than the
+   * viewport. The card is not a viewport fraction: it sits inside a fixed
+   * device frame on desktop and a real screen on phone, and on a 320pt phone a
+   * 13px line is wider than the paper it is printed on, so the clip-path eats
+   * the end of it.
    */
   container-type: inline-size;
 
-  /* Tone steps are mixed from the two receipt tokens so the paper stays one
+  /* Tone steps are mixed from the two paper tokens so the card stays one
      material — a grey borrowed from the dark UI reads as dirt on cream. */
   --ink-2: color-mix(in srgb, var(--ink) 62%, var(--paper));
   --ink-3: color-mix(in srgb, var(--ink) 34%, var(--paper));
 
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: var(--s-3);
   background: var(--paper);
   color: var(--ink);
-  /* Top padding is the tear depth: the clip bites into it, never into content. */
-  padding: 11px 18px 16px;
+  /* Top and bottom padding are the tear depth: the clip bites into them, never
+     into content. */
+  padding: 16px 18px 18px;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Brand -------------------------------------------------------------------
- * A solid band, not a wordmark. At thumbnail size the letters go and the band
- * stays, and the band alone is enough to recognise the card in a feed.
+/* ---- Head --------------------------------------------------------------------
+ * The wordmark is set in the data face rather than the display one so it reads
+ * as a stamp on the paper instead of as the first line of the card's copy.
  */
 
-.receipt-brand {
-  margin: 0 -18px;
-  padding: 9px 0;
-  background: var(--ink);
-  text-align: center;
-}
-
-.receipt-brand-text {
-  font: 700 15px/1 var(--data);
-  letter-spacing: 0.34em;
-  /* The band is ink, so the type is knocked out of it in paper. */
-  color: var(--paper);
-  /* Tracking adds a trailing gap that decentres the word inside a centred box. */
-  margin-left: 0.34em;
-}
-
-.receipt-meta {
+.napkin-head {
   display: flex;
   justify-content: space-between;
-  margin-top: -2px;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.napkin-mark {
+  font: 700 13px/1 var(--data);
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  color: var(--ink);
+}
+
+.napkin-meta {
   font: var(--t-data-sm);
+  /* Same reason as the foot: fixed-width glyphs, no wrap, and a clip-path with
+     no mercy. Overrides only the size in --t-data-sm. */
+  font-size: min(11px, 3.3cqi);
   text-transform: uppercase;
   letter-spacing: var(--track-data-wide);
   color: var(--ink-2);
+  white-space: nowrap;
 }
 
-/* ---- Rules ------------------------------------------------------------------- */
-
-.receipt-rule {
+.napkin-rule {
   height: 2px;
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--ink-3) 0 4px,
-    transparent 4px 9px
-  );
+  background-image: repeating-linear-gradient(to right, var(--ink-3) 0 4px, transparent 4px 9px);
 }
 
-.receipt-rule--double {
-  height: 7px;
-  background-image: linear-gradient(var(--ink) 0 3px, transparent 3px 5px, var(--ink) 5px 7px);
-}
-
-.receipt-title {
-  font: var(--t-title);
-  text-transform: uppercase;
-  letter-spacing: var(--track-display);
-  text-wrap: balance;
-  margin: 1px 0;
-}
-
-/* ---- Line items ---------------------------------------------------------------
- * The dotted leader is a repeating gradient rather than a run of periods. A row
- * of "." characters breaks at a different point at every width and at thumbnail
- * size collapses into a smear that looks like a rendering fault.
+/* ---- The question ------------------------------------------------------------
+ * The largest thing on the card, and the reason a stranger reads any of the
+ * rest. It is set as written — sentence case, question mark and all — because
+ * an uppercased question stops looking like something being asked of you.
  */
 
-.receipt-items {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.napkin-scene {
+  font: var(--t-body-sm);
+  color: var(--ink-2);
+  text-wrap: pretty;
+  margin-bottom: -2px;
 }
 
-.receipt-item {
+.napkin-question {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: min(22px, 7cqi);
+  line-height: 1.06;
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+}
+
+/* ---- Givens -------------------------------------------------------------------
+ * The numbers the question was set with, which is what makes the answer
+ * surprising rather than arbitrary. The dotted leader is a repeating gradient
+ * rather than a run of periods: a row of "." characters breaks at a different
+ * point at every width and at thumbnail size collapses into a smear that looks
+ * like a rendering fault.
+ */
+
+.napkin-givens {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.napkin-given {
   display: flex;
   align-items: baseline;
   min-width: 0;
 }
 
-.receipt-k {
+.napkin-k {
   font: var(--t-data-sm);
+  font-size: min(10px, 3cqi);
   text-transform: uppercase;
   letter-spacing: var(--track-data-wide);
   color: var(--ink-2);
@@ -131,132 +142,127 @@
   text-overflow: ellipsis;
 }
 
-.receipt-leader {
+.napkin-leader {
   flex: 1 1 auto;
   min-width: 14px;
   align-self: flex-end;
   height: 2px;
   margin: 0 6px 3px;
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--ink-3) 0 2px,
-    transparent 2px 5px
-  );
+  background-image: repeating-linear-gradient(to right, var(--ink-3) 0 2px, transparent 2px 5px);
 }
 
-.receipt-v {
-  font: var(--t-data);
-  letter-spacing: 0.04em;
+.napkin-v {
+  font-family: var(--data);
+  font-weight: 700;
+  font-size: min(11px, 3.3cqi);
+  line-height: 1.3;
+  letter-spacing: 0.03em;
   color: var(--ink);
   white-space: nowrap;
   flex: 0 0 auto;
 }
 
-/* The line the call turns on carries the weight, so the eye lands there first. */
-.receipt-item[data-emphasis] .receipt-k {
-  color: var(--ink);
-}
-.receipt-item[data-emphasis] .receipt-v {
-  font-weight: 700;
-}
-
-/* ---- The number ---------------------------------------------------------------
- * One figure, as large as the card allows. This is the mark that has to survive
- * at 120px, so nothing else on the receipt is permitted to compete with it.
+/* ---- The answer ---------------------------------------------------------------
+ * One phrase, as large as the card allows, with a drawn line under it. This is
+ * the second of the two marks that has to survive at 120px, so nothing else is
+ * permitted to compete with it.
  */
 
-/*
- * Not `.receipt-total`: the screen that hosts this card already owns that name
- * for its footer line, and plain CSS has no scope, so the two rules were landing
- * on each other's elements and laying the footer paragraph out as a flex column.
- */
-.receipt-sum {
+.napkin-answer,
+.napkin-block {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
+  align-items: flex-start;
+  gap: 4px;
 }
 
-.receipt-hero {
-  font: 700 38px/1 var(--display);
+.napkin-kicker {
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--ink-2);
+}
+
+.napkin-figure-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  /* Room under the baseline for the stroke, which is positioned into it. */
+  padding-bottom: 11px;
+}
+
+.napkin-figure {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: min(30px, 9.4cqi);
+  line-height: 1.02;
   letter-spacing: var(--track-display);
   color: var(--ink);
 }
 
-.receipt-delta {
+.napkin-stroke {
+  position: absolute;
+  /*
+   * Overhung at both ends, because a pen starts before the word and stops
+   * after it. Sized with an explicit width rather than left+right: an SVG is a
+   * replaced element, so an absolutely positioned one with `width: auto` takes
+   * its intrinsic size from the viewBox ratio and ignores `right` — which drew
+   * a 500px stroke under a 175px figure, straight off the edge of the paper.
+   */
+  left: -3px;
+  width: calc(100% + 10px);
+  bottom: 0;
+  height: 10px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.napkin-note {
+  font: var(--t-body-sm);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.napkin-rule-text {
+  font: var(--t-body);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+/* ---- Foot ---------------------------------------------------------------------
+ * The sender's guess is the smallest type on the paper and absent unless they
+ * asked for it. It is a footnote to the fact, never the subject of the card.
+ */
+
+.napkin-guess {
+  font: var(--t-data-sm);
+  font-size: min(10px, 3cqi);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--ink-3);
   margin-top: -4px;
 }
-.receipt-delta[data-tone='loss'] .receipt-k,
-.receipt-delta[data-tone='loss'] .receipt-v {
-  color: var(--loss);
-}
 
-/* ---- Stamp --------------------------------------------------------------------
- * Rubber, not a label: rotated off the grid, heavy, wildly letterspaced, and
- * ruled above and below so it reads as ink pressed onto the paper after the
- * fact. Second of the three marks that survive the thumbnail.
- */
-
-.receipt-stamp {
-  align-self: center;
-  max-width: 100%;
-  margin: 5px 0;
-  padding: 6px 12px;
-  border-block: 4px double currentcolor;
-  transform: rotate(-2.6deg);
-  color: var(--ink);
-  /* Ink never sits perfectly solid on a stamp. */
-  opacity: 0.9;
-}
-
-.receipt-stamp[data-verdict='short'],
-.receipt-stamp[data-verdict='over'] {
-  color: var(--loss);
-}
-
-.receipt-stamp-text {
-  display: block;
-  /* 13px, until the longest stamp (MONEY LEFT BEHIND, 25 monospace glyphs at
-     0.2em tracking) stops fitting the paper. Courier advances 0.6em, so the
-     row needs ~20x its own font-size plus the stamp's padding. */
-  font-family: var(--data);
-  font-weight: 700;
-  font-size: min(13px, 3.8cqi);
-  line-height: 1.1;
-  letter-spacing: 0.2em;
-  white-space: nowrap;
-  margin-left: 0.2em;
-}
-
-/* ---- Barcode ------------------------------------------------------------------
- * Bar widths come from the player's result, so two people who played the same
- * call differently carry visibly different bars. Third surviving mark: at
- * thumbnail size it is a dense band, which is exactly what a barcode looks like
- * from that distance anyway.
- */
-
-.receipt-barcode {
-  width: 100%;
-  height: 34px;
-  fill: var(--ink);
-}
-
-.receipt-foot {
+.napkin-foot {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--s-3);
-  margin-top: -4px;
   font: var(--t-data-sm);
-  /* Same reason as the stamp: 32 fixed-width glyphs across, no wrap, and a
-     clip-path with no mercy. Overrides the size in --t-data-sm only. */
-  font-size: min(11px, 3.3cqi);
+  font-size: min(10px, 3cqi);
+  text-transform: uppercase;
   letter-spacing: var(--track-data-wide);
   color: var(--ink-3);
+  white-space: nowrap;
 }
 
-.receipt-domain {
+.napkin-where {
   font-weight: 700;
-  text-transform: uppercase;
-  color: var(--ink);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

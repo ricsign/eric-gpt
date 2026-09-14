@@ -1,20 +1,32 @@
 import { useMemo, useState } from 'react'
-import { Receipt } from '../ui/Receipt'
-import { shareReceipt, type ReceiptInput } from '../lib/receipt'
-import { COMPUTE } from '../calls/compute'
-import { judge, referenceValue, type Call, type Profile } from '../calls/types'
+import { Napkin } from '../ui/Receipt'
+import {
+  answerNote,
+  answerText,
+  dialText,
+  sharedFacts,
+  shareReceipt,
+  type NapkinInput,
+} from '../lib/receipt'
+import { resolveOptimal, type Call, type Profile } from '../calls/types'
 import { formatCallDate } from '../lib/schedule'
-import { moneyCompact } from '../lib/format'
 import { haptic } from '../lib/haptics'
 import './ReceiptScreen.css'
 
 /**
- * The receipt, and the three ways out of it.
+ * The share screen, and the three ways out of it.
  *
- * Image for feeds, plain text for group chats where images die, and a deep link
- * so the recipient plays the same call before seeing anyone's answer. All three
- * ship, because a single share path is a single point of failure for the only
- * metric that matters on day one.
+ * Image for feeds, plain text for group chats where images die, and a link so
+ * the recipient can go and guess the rest. All three ship, because a single
+ * share path is a single point of failure for the only thing that spreads this.
+ *
+ * What the card carries changed completely here, and the reason is the whole
+ * job. It used to be the sender's result: a projection to 65, the gap to the
+ * right answer, and a stamp reading MONEY LEFT BEHIND. Every reader we showed
+ * it to refused to send it, in the same words — it is a picture of them getting
+ * money wrong, addressed to people they work with. So the card is now the
+ * question and its real answer, which is the thing they said they *would* send,
+ * and their own guess is a toggle that starts off.
  */
 export function ReceiptScreen({
   call,
@@ -25,6 +37,7 @@ export function ReceiptScreen({
   onNext,
 }: {
   call: Call
+  /** Position in the set of ten, one-based. Also the deep link on the card. */
   callNo: number
   value: number
   profile: Profile
@@ -32,23 +45,26 @@ export function ReceiptScreen({
   onNext: () => void
 }) {
   const [state, setState] = useState<'idle' | 'shared' | 'copied' | 'failed'>('idle')
+  // Off by default. Adding your guess is a decision to put yourself on the
+  // card, and the product should not make it for you.
+  const [withGuess, setWithGuess] = useState(false)
 
-  const input: ReceiptInput = useMemo(() => {
-    const compute = COMPUTE[call.compute]
-    const mine = compute(value, profile)
-    const best = compute(referenceValue(value, call.optimal, profile), profile)
-    return {
-      callNo,
+  const input: NapkinInput = useMemo(
+    () => ({
+      questionNo: callNo,
       date: formatCallDate(day),
-      title: call.title,
-      verdict: judge(value, call.optimal, profile),
-      value,
-      unit: call.variable.unit,
-      breakdown: mine.breakdown,
-      at65: mine.at65,
-      delta: mine.at65 - best.at65,
-    }
-  }, [call, callNo, value, profile, day])
+      scene: call.title,
+      question: call.question,
+      // The profile is resolved here and never handed to the card: only the
+      // answer crosses, so nothing downstream can print anyone's pay.
+      answer: answerText(resolveOptimal(call.optimal, profile), call.variable),
+      note: answerNote(call.variable),
+      rule: call.rule,
+      givens: sharedFacts(call.fixed),
+      guess: withGuess ? dialText(value, call.variable) : undefined,
+    }),
+    [call, callNo, value, profile, day, withGuess],
+  )
 
   const share = async (mode: 'image' | 'text' | 'link') => {
     haptic('light')
@@ -59,35 +75,42 @@ export function ReceiptScreen({
   }
 
   return (
-    <div className="receipt-screen scroll">
-      <Receipt input={input} />
+    <div className="share scroll">
+      <Napkin input={input} />
 
-      <div className="receipt-actions">
-        <button className="receipt-btn receipt-btn--primary press" onClick={() => share('image')}>
-          {state === 'shared' ? 'Shared' : 'Share receipt'}
+      <div className="share-actions">
+        <button
+          className="share-guess press"
+          aria-pressed={withGuess}
+          onClick={() => {
+            haptic('light')
+            setWithGuess((on) => !on)
+          }}
+        >
+          <span className="share-guess-box" aria-hidden="true" />
+          <span className="data-sm">Put my guess on it</span>
         </button>
-        <div className="receipt-btn-row">
-          <button className="receipt-btn press" onClick={() => share('text')}>
+
+        <button className="share-btn share-btn--primary press" onClick={() => share('image')}>
+          {state === 'shared' ? 'Sent' : 'Share this'}
+        </button>
+        <div className="share-btn-row">
+          <button className="share-btn press" onClick={() => share('text')}>
             {state === 'copied' ? 'Copied' : 'Copy as text'}
           </button>
-          <button className="receipt-btn press" onClick={() => share('link')}>
+          <button className="share-btn press" onClick={() => share('link')}>
             Copy link
           </button>
         </div>
         {state === 'failed' && (
-          <p className="receipt-fail data-sm">Sharing is blocked in this browser.</p>
+          <p className="share-fail data-sm">Sharing is blocked in this browser.</p>
         )}
       </div>
 
-      <button className="receipt-next press" onClick={onNext}>
+      <button className="share-next press" onClick={onNext}>
         <span className="data-sm">Tomorrow</span>
-        <span className="receipt-next-teaser">{call.tomorrow}</span>
+        <span className="share-next-teaser">{call.tomorrow}</span>
       </button>
-
-      <p className="receipt-total data-sm num">
-        This call: {input.delta >= 0 ? '+' : '−'}
-        {moneyCompact(Math.abs(input.delta))} at 65
-      </p>
     </div>
   )
 }

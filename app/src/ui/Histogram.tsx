@@ -73,10 +73,13 @@ export function Histogram({
       className="hist"
       role="img"
       aria-label={[
+        // Spoken to someone who cannot see the bars, so it says what the
+        // picture says and nothing the product cannot back up: the chart is a
+        // research prior, not a count of other people using the app.
         hasCrowd
-          ? `Crowd distribution. Most players answered ${tick(mode, unit)}.`
+          ? `Crowd distribution. Most people answered ${tick(mode, unit)}.`
           : 'No crowd data yet.',
-        hasOptimal ? `The best play is ${tick(optimal, unit)}.` : '',
+        hasOptimal ? `The best answer is ${tick(optimal, unit)}.` : '',
         `You answered ${tick(value, unit)}.`,
       ]
         .filter(Boolean)

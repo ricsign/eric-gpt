@@ -49,25 +49,25 @@ const tap = async (selector, label) => {
 
 console.log('cold open')
 await page.goto(BASE, { waitUntil: 'networkidle' })
-await shot('01-salary')
+// The home screen is the whole of onboarding now: what this is, and the ten
+// questions. If a stranger cannot read the pitch here, nothing downstream
+// matters — so this is the first thing the smoke test captures.
+await shot('01-home')
 
-// Drag the salary track rather than skipping, so the first-run gesture is
-// exercised on every run.
-const track = await page.locator('.salary-track').first().boundingBox()
-if (track) {
-  await page.mouse.move(track.x + track.width * 0.1, track.y + track.height / 2)
-  await page.mouse.down()
-  for (let i = 1; i <= 12; i++) {
-    await page.mouse.move(track.x + track.width * (0.1 + (0.45 * i) / 12), track.y + track.height / 2)
-    await page.waitForTimeout(14)
-  }
-  await page.mouse.up()
-  await shot('02-salary-dragged')
-}
-await tap('.salary-go', 'start')
+const pitch = await page.locator('.home-pitch').first().textContent()
+if (!pitch || !pitch.trim()) problems.push('home screen states no pitch')
+const rows = await page.locator('.home-row').count()
+if (rows !== 10) problems.push(`home lists ${rows} questions, expected 10`)
 
-console.log('the call')
-await shot('03-call')
+await tap('.home-row[data-state="open"]', 'question 1')
+
+console.log('the question')
+await shot('02-question')
+
+// The question has to be on the screen, not inferred from a headline and a
+// bar. Six reviewers could not tell what was being asked of them.
+const q = await page.locator('.call-question').first().textContent()
+if (!q || !q.trim().endsWith('?')) problems.push('question screen shows no question')
 
 // The mechanic. Drag the block bar across most of its range, then back, so the
 // same-frame recompute and the block tinting are both visible in the capture.
@@ -80,38 +80,49 @@ if (bar) {
     await page.mouse.move(bar.x + 4 + (bar.width - 8) * (i / 20), y)
     await page.waitForTimeout(16)
   }
-  await shot('04-call-dragged-max')
+  await shot('03-dragged-max')
   for (let i = 20; i >= 8; i--) {
     await page.mouse.move(bar.x + 4 + (bar.width - 8) * (i / 20), y)
     await page.waitForTimeout(16)
   }
   await page.mouse.up()
-  await shot('05-call-settled')
+  await shot('04-settled')
 } else {
   problems.push('no .blockbar found — the control is the product, this is fatal')
 }
 
-await tap('.call-lock', 'lock it in')
+await tap('.call-lock', 'answer')
 
-console.log('outcome')
-await shot('06-outcome')
-await page.evaluate(() => document.querySelector('.outcome')?.scrollTo(0, 400))
-await shot('07-outcome-crowd')
+console.log('the reveal')
+await shot('05-reveal')
+await page.evaluate(() => document.querySelector('.outcome')?.scrollTo(0, 500))
+await shot('06-reveal-why')
+await page.evaluate(() => document.querySelector('.outcome')?.scrollTo(0, 1100))
+await shot('07-reveal-action')
 
-await tap('.outcome-print', 'print receipt')
-console.log('receipt')
-await shot('08-receipt')
+// Nothing on the reveal may shout a six-figure loss in red. That single
+// element is what made a stranger with $4,000 close the tab.
+const body = await page.evaluate(() => document.body.innerText)
+for (const banned of ['OVERSHOT', 'OPTIMAL PLAY', 'walked past by 65', 'of players']) {
+  if (body.includes(banned)) problems.push(`reveal still says "${banned}"`)
+}
 
-await tap('.receipt-next', 'tomorrow')
-console.log('tomorrow')
-await shot('09-tomorrow')
+await tap('.outcome-print, .outcome-share', 'share card')
+console.log('the card')
+await shot('08-card')
 
-await tap('.tomorrow-link:has-text("Tab")', 'the tab')
-await shot('10-tab')
-await tap('[data-close], .tab-close', 'close')
+await tap('.share-next', 'next')
+console.log('next')
+await shot('09-next')
 
-await tap('.tomorrow-link:has-text("Rules")', 'rules')
-await shot('11-rules')
+await tap('.tomorrow-link:has-text("list"), .tomorrow-link:has-text("List")', 'my list')
+await shot('10-list')
+await tap('.rules-action:has-text("Close")', 'close')
+
+// Closing the list lands on home, which is where a returning player starts.
+// Progress is reached from there, so that is the route the smoke test takes.
+await tap('.home-link:has-text("Progress")', 'progress')
+await shot('11-progress')
 
 await browser.close()
 

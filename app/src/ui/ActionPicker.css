@@ -1,0 +1,72 @@
+/*
+ * Three chips, one row, one of them on.
+ *
+ * Sized as data rather than as body copy because it is a state readout as much
+ * as a control: at a glance down a list of ten, the reader is reading which
+ * chip is lit, not the words on the other two.
+ */
+
+.action-picker {
+  display: flex;
+  /* Hairlines are the background showing through a 1px gap, never a border. */
+  gap: 1px;
+  /* The three labels fit one row at 402px with room to spare, but a larger
+     system text size is not a reason for the third one to be cut off. */
+  flex-wrap: wrap;
+}
+
+.action-opt {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Never below 44px, however small the type inside it is. */
+  min-height: var(--tap);
+  padding: 0 var(--s-2);
+  background: var(--surface-2);
+  border-radius: var(--r);
+  /* Every option carries the border so that lighting one up cannot move the
+     row by a pixel. */
+  border: 1px solid transparent;
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--fg-3);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-tap) ease-out, background var(--dur-tap) ease-out;
+}
+
+/* The input is clipped, so the ring has to be drawn on what is visible. */
+.action-opt input:focus-visible + .action-opt-t {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/*
+ * Finished is the only one that gets the accent. It is the affirmative state
+ * in a product where acid lime means money you did not leave behind, and it
+ * is the one a reader should be able to find by colour alone while scrolling.
+ */
+.action-opt[data-on][data-state='done'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Waiting, not failing. Caution carries "there is still something here"
+   without the red that would make an unfinished errand read as a mistake. */
+.action-opt[data-on][data-state='open'] {
+  border-color: var(--caution-dim);
+  color: var(--caution);
+}
+
+/*
+ * Set aside, and deliberately the quietest of the three. Someone marking five
+ * questions as not theirs should end up with a calmer page, not a page full
+ * of struck-through rows telling them what they did not do.
+ */
+.action-opt[data-on][data-state='na'] {
+  border-color: var(--hairline);
+  color: var(--fg-2);
+}

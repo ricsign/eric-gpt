@@ -1,114 +1,105 @@
 import { useMemo } from 'react'
 import {
-  DOMAIN,
+  PEN_SEGMENTS,
   TEAR_SEGMENTS,
-  barcodeUnits,
-  barcodeWidths,
-  deltaLine,
-  receiptCode,
-  receiptLines,
-  receiptSeed,
-  stampText,
+  napkinSeed,
+  penPathData,
+  penStroke,
+  shareHandle,
   tearClipPath,
-  type ReceiptInput,
+  type NapkinInput,
 } from '../lib/receipt'
-import { money } from '../lib/format'
 import './Receipt.css'
 
 /** Matches the canvas renderer's tear depth, scaled to the on-screen card. */
 const TEAR_DEPTH = 11
 
 /**
- * The receipt, on screen.
+ * The napkin, on screen.
  *
  * Designed backwards from the feed: the first test of this card is not whether
- * it reads at 362px, it is whether it reads at 120px in someone's timeline. So
- * the hierarchy is brutal — a solid ink brand band, one enormous figure, one
- * stamp — and everything else is deliberately small grey texture that is allowed
- * to dissolve at thumbnail size.
+ * it reads at 362px, it is whether a stranger scrolling past at 120px can tell
+ * what it is. So the hierarchy is brutal — the question, then the answer, and
+ * everything else is small grey texture that is allowed to dissolve.
  *
- * Every irregular thing on it (the tear, the bars) is seeded from the player's
- * own result via lib/receipt, so this card and the shared PNG are the same
- * object and re-rendering never reshuffles it.
+ * What it does *not* show is the point of it. There is no projection, no gap to
+ * the right answer, and no verdict, because the card that carried those was a
+ * picture of the sender being wrong and nobody sends that. The sender's own
+ * guess appears only when they ask for it, in the smallest type on the paper.
+ *
+ * Every irregular thing on it — the torn edge, the pen stroke — is seeded from
+ * what is printed on it via lib/receipt, so this card and the shared PNG are the
+ * same object and re-rendering never reshuffles it.
  */
-export function Receipt({ input }: { input: ReceiptInput }) {
-  const seed = receiptSeed(input)
-  const lines = receiptLines(input)
-  const delta = deltaLine(input)
+export function Napkin({ input }: { input: NapkinInput }) {
+  const seed = napkinSeed(input)
+  const handle = shareHandle(input.questionNo)
 
   const clipPath = useMemo(() => tearClipPath(seed, TEAR_DEPTH, TEAR_SEGMENTS), [seed])
-  const barcode = useMemo(() => {
-    const widths = barcodeWidths(seed)
-    const startOf = (i: number) => widths.slice(0, i).reduce((a, b) => a + b, 0)
-    // Even modules are ink, odd are paper; only the ink ones need a rect.
-    const bars = widths.flatMap((w, i) => (i % 2 === 0 ? [{ x: startOf(i), w }] : []))
-    return { bars, units: barcodeUnits(widths) }
-  }, [seed])
+  // Drawn in a 100 x 2 box and stretched to whatever width the figure ends up
+  // being; `vector-effect` below keeps the nib from stretching with it.
+  const stroke = useMemo(() => penPathData(penStroke(seed, 100, PEN_SEGMENTS), 1), [seed])
 
   return (
-    <div className="receipt-lift">
-      <figure className="receipt" style={{ clipPath }}>
-        <div className="receipt-brand">
-          <span className="receipt-brand-text">COMPOUND</span>
-        </div>
+    <div className="napkin-lift">
+      <figure className="napkin" style={{ clipPath }}>
+        <header className="napkin-head">
+          <span className="napkin-mark">Napkin</span>
+          <span className="napkin-meta num">
+            Question {input.questionNo} · {input.date}
+          </span>
+        </header>
 
-        <div className="receipt-meta">
-          <span>No.{input.callNo}</span>
-          <span>{input.date}</span>
-        </div>
+        <div className="napkin-rule" />
 
-        <div className="receipt-rule" />
+        <p className="napkin-scene">{input.scene}</p>
 
-        <h2 className="receipt-title">{input.title}</h2>
+        <h2 className="napkin-question">{input.question}</h2>
 
-        <div className="receipt-rule" />
-
-        <ul className="receipt-items">
-          {lines.map((line, i) => (
-            <li
-              className="receipt-item"
-              key={`${line.label}-${i}`}
-              data-emphasis={line.emphasis === true ? '' : undefined}
-            >
-              <span className="receipt-k">{line.label}</span>
-              <span className="receipt-leader" aria-hidden="true" />
-              <span className="receipt-v num">{line.value}</span>
+        <ul className="napkin-givens">
+          {input.givens.map((g) => (
+            <li className="napkin-given" key={g.k}>
+              <span className="napkin-k">{g.k}</span>
+              <span className="napkin-leader" aria-hidden="true" />
+              <span className="napkin-v num">{g.v}</span>
             </li>
           ))}
         </ul>
 
-        <div className="receipt-rule receipt-rule--double" />
+        <div className="napkin-rule" />
 
-        <div className="receipt-sum">
-          <span className="receipt-k">Total at 65</span>
-          <strong className="receipt-hero num">{money(input.at65)}</strong>
+        <div className="napkin-answer">
+          <p className="napkin-kicker">The answer</p>
+          {/* The figure and its stroke are one inline-block so the stroke ends
+              where the words do, the way a pen would, rather than running the
+              width of the column. */}
+          <span className="napkin-figure-wrap">
+            <strong className="napkin-figure num">{input.answer}</strong>
+            <svg
+              className="napkin-stroke"
+              viewBox="0 0 100 2"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path d={stroke} vectorEffect="non-scaling-stroke" />
+            </svg>
+          </span>
+          <p className="napkin-note">{input.note}</p>
         </div>
 
-        <div className="receipt-item receipt-delta" data-tone={delta.tone}>
-          <span className="receipt-k">{delta.label}</span>
-          <span className="receipt-leader" aria-hidden="true" />
-          <span className="receipt-v num">{delta.value}</span>
+        <div className="napkin-rule" />
+
+        <div className="napkin-block">
+          <p className="napkin-kicker">The rule</p>
+          <p className="napkin-rule-text">{input.rule}</p>
         </div>
 
-        <div className="receipt-stamp" data-verdict={input.verdict}>
-          <span className="receipt-stamp-text">*** {stampText(input.verdict)} ***</span>
-        </div>
+        {input.guess !== undefined && <p className="napkin-guess">I guessed {input.guess}.</p>}
 
-        <svg
-          className="receipt-barcode"
-          viewBox={`0 0 ${barcode.units} 10`}
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          {barcode.bars.map((b) => (
-            <rect key={b.x} x={b.x} y="0" width={b.w} height="10" />
-          ))}
-        </svg>
-
-        <div className="receipt-foot">
-          <span className="num">{receiptCode(input)}</span>
-          <span className="receipt-domain">{DOMAIN}</span>
-        </div>
+        <footer className="napkin-foot">
+          <span>Estimates, not advice.</span>
+          {handle !== '' && <span className="napkin-where">{handle}</span>}
+        </footer>
       </figure>
     </div>
   )

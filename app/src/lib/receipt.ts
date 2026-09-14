@@ -1,62 +1,200 @@
 /**
- * The receipt: the share artifact, and the only thing that leaves the app.
+ * The napkin: the share artifact, and the only thing that leaves the app.
  *
- * Three renderings of one design — the DOM card in ui/Receipt.tsx, the PNG drawn
- * here, and the five-line plain text for group chats where images die. They must
- * agree, so everything that decides *shape* (the tear, the barcode, the stamp
- * wording, the code line) lives in this file as a pure function and is imported
- * by both renderers. A tear that differs between the screenshot and the PNG is a
- * bug nobody reports and everybody notices.
+ * What this replaces was a receipt, and it was the wrong object twice over. A
+ * receipt is proof of money already spent; this product is a rough estimate you
+ * work out yourself, which is a napkin. And the old card was built around the
+ * sender's score — a stamp reading MONEY LEFT BEHIND over a six-figure figure in
+ * red — so all three test readers said, unprompted, that they would never post
+ * it. One of them: "that is a picture of me getting money wrong, which I would
+ * be posting to people I work with."
  *
- * Nothing here ever touches the profile. A receipt discloses a game result — a
- * call number, a position on a slider, a projection — and never personal
- * financial data. `ReceiptInput` deliberately has no salary field so that
- * property is structural rather than a rule someone has to remember.
+ * So the card carries the fact, not the score. The question, the givens it was
+ * set with, and the real answer — the thing a reader said they *would* send.
+ * The sender's own guess is optional and small, and off unless they ask for it.
+ * Nothing here knows what anyone answered unless they choose to say.
+ *
+ * Two renderings of one design — the DOM card in ui/Receipt.tsx and the PNG
+ * drawn here — plus five lines of plain text for group chats where images die.
+ * Everything that decides *shape* (the torn edge, the pen stroke, the wording)
+ * lives in this file as a pure function and is imported by both renderers. An
+ * edge that differs between the screenshot and the PNG is a bug nobody reports
+ * and everybody notices.
+ *
+ * Nothing here ever touches the profile. `NapkinInput` deliberately has no
+ * salary field and no `Profile`, so "the share never carries personal financial
+ * data" is structural rather than a rule someone has to remember — and
+ * `sharedFacts` enforces the same thing for the givens, which are authored
+ * templates that the profile would otherwise fill in.
+ *
+ * The file and the `shareReceipt` entry point keep their old names because the
+ * screen and the shell already reach for them by those names.
  */
 
-import type { BreakdownLine, Verdict } from '../calls/types'
-import { money, moneyCompact } from './format'
-import { urlForCall } from './route'
+import type { CallFact, CallVariable } from '../calls/types'
+import { money } from '../lib/format'
+import { pathForCall } from './route'
 
-/** Bare domain. Appears in the share text with no path, no parameters, no tracking. */
-export const DOMAIN = 'compound.day'
+/**
+ * Where every share points.
+ *
+ * This was hardcoded to a domain that belongs to a different live company, so
+ * every successful share the product ever made sent someone to a competitor.
+ * It is read from the environment now, and falls back to wherever the app is
+ * actually being served from, which cannot be wrong by construction. Empty only
+ * when there is no browser and no configured origin — a test, or a render on a
+ * server — and every caller below degrades to saying nothing rather than to
+ * printing a broken address.
+ */
+export const DOMAIN: string =
+  import.meta.env.VITE_PUBLIC_ORIGIN ?? (typeof location === 'undefined' ? '' : location.host)
 
-/** Everything a receipt needs. Assembled by the screen, never read from storage. */
-export interface ReceiptInput {
-  /** Stable forever: "No.142" identifies the call for everyone, in every timezone. */
-  callNo: number
+/** The origin with any scheme or trailing slash taken off: what a person reads. */
+function bareHost(origin: string): string {
+  return origin.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+}
+
+/**
+ * The address printed on the card and in the share text: `napkin.example/4`.
+ *
+ * No scheme, no query, no tracking — a bare host and the question number, which
+ * is short enough to read off a screenshot and type by hand. Empty when there is
+ * no origin to name.
+ */
+export function shareHandle(questionNo: number, origin: string = DOMAIN): string {
+  const host = bareHost(origin)
+  return host ? `${host}${pathForCall(questionNo)}` : ''
+}
+
+/**
+ * The absolute URL the copy-link button puts on the clipboard.
+ *
+ * Built from the same origin as the text and the PNG rather than from
+ * `location` directly: a preview build configured with a canonical origin would
+ * otherwise print one address on the card and copy a different one, and the two
+ * would only disagree in the one place nobody checks.
+ */
+export function shareLink(questionNo: number, origin: string = DOMAIN): string {
+  const host = bareHost(origin)
+  if (!host) return pathForCall(questionNo)
+  const scheme = /^http:\/\//i.test(origin) ? 'http://' : 'https://'
+  return `${scheme}${host}${pathForCall(questionNo)}`
+}
+
+/** The optimum, with any profile dependence already resolved by the caller. */
+export type Answer = number | { min: number; max: number }
+
+/** Everything a napkin needs. Assembled by the screen, never read from storage. */
+export interface NapkinInput {
+  /** Which of the ten. Also the deep link the card points at. */
+  questionNo: number
   /** Already formatted for display, e.g. `SEP 13`. */
   date: string
-  title: string
-  verdict: Verdict
-  /** Where the player left the control. */
-  value: number
-  /** Rendered straight after the value. Empty for money variables. */
-  unit: string
-  breakdown: BreakdownLine[]
-  /** The hero figure. */
-  at65: number
-  /** Signed: this play against the optimal play, at 65. */
-  delta: number
+  /** The scene the question sits in. One sentence, from the registry. */
+  scene: string
+  /** The question the dial answers. The hook, and the largest text on the card. */
+  question: string
+  /** The givens. Guaranteed profile-free — see `sharedFacts`. */
+  givens: CallFact[]
+  /** The real answer, in the words the dial used: `12mo or less`. */
+  answer: string
+  /** What the answer is measured in: `to pay it off in full`. */
+  note: string
+  /** The takeaway, one line. */
+  rule: string
+  /** The sender's own answer. Absent unless they asked for it. */
+  guess?: string
 }
 
 export type ShareOutcome = 'shared' | 'copied' | 'cancelled' | 'failed'
 export type ShareMode = 'image' | 'text' | 'link'
 
-export interface ReceiptSize {
+export interface CardSize {
   width: number
   height: number
 }
 
 /** 9:16 for stories. */
-export const STORY: ReceiptSize = { width: 1080, height: 1920 }
+export const STORY: CardSize = { width: 1080, height: 1920 }
 /** 1:1 for feeds and chat previews, which crop anything taller. */
-export const SQUARE: ReceiptSize = { width: 1080, height: 1080 }
+export const SQUARE: CardSize = { width: 1080, height: 1080 }
+
+/* ---- Wording ------------------------------------------------------------------
+ * The four functions that turn a call record into the sentences on the card.
+ * Pure and exported so every one of the ten can be swept in a test: the card is
+ * the one surface where a sentence that reads badly is seen by strangers first.
+ */
+
+/**
+ * Dials whose number is money.
+ *
+ * Five of the ten carry an empty unit, because the readout prints the unit
+ * straight after the figure and "3200$" is not a thing — but only four of those
+ * five are dollars; the fifth counts the market's best days. Nothing in the
+ * record separates them, so this does. Keyed by the variable's own name so that
+ * renaming a dial fails a test rather than quietly printing "$4" for four days.
+ */
+const MONEY_DIALS = new Set(['toLowerRate', 'refund', 'repairSpend', 'expenseRatio'])
+
+/** Whether this dial's number should be read as dollars. */
+export function isMoneyDial(v: CallVariable): boolean {
+  return v.unit === '' && MONEY_DIALS.has(v.key)
+}
+
+/** One position on a dial, as a noun: `6%`, `$3,000`, `owe $500`, `4`. */
+export function dialText(value: number, v: CallVariable): string {
+  if (!isMoneyDial(v)) return `${value}${v.unit}`
+  // Only the refund dial goes below zero, and there a negative is not a
+  // negative amount of money — it is a bill, and it reads as one.
+  return value < 0 ? `owe ${money(-value)}` : money(value)
+}
+
+/**
+ * The answer, in one phrase.
+ *
+ * A band does not have a single answer, it has an edge, and which edge matters
+ * depends on where the band sits on the dial. Where a band runs to the end of
+ * the track, naming the far end would invent a ceiling the maths does not have:
+ * saving more than the employer match is not a mistake, and "6% to 15%" would
+ * say it was. So a band that touches an end of the dial is stated as an open
+ * one, and only a band with room on both sides is stated as a span.
+ */
+export function answerText(answer: Answer, v: CallVariable): string {
+  if (typeof answer === 'number') return dialText(answer, v)
+  if (answer.min <= v.min) return `${dialText(answer.max, v)} or less`
+  if (answer.max >= v.max) return `${dialText(answer.min, v)} or more`
+  return `${dialText(answer.min, v)} to ${dialText(answer.max, v)}`
+}
+
+/**
+ * What the answer is measured in — the dial's own caption, read after the figure.
+ *
+ * Money captions open with the word "dollars" because the dial prints a bare
+ * number above them. The card prints `$3`, so leaving the word in would produce
+ * "$3, dollars a year per $10,000" — the unit said twice, which reads as a typo.
+ */
+export function answerNote(v: CallVariable): string {
+  return isMoneyDial(v) ? v.label.replace(/^dollars\s+/i, '') : v.label
+}
+
+/**
+ * The givens, minus anything the profile fills in.
+ *
+ * `fixed` values are templates: three of the ten interpolate the reader's own pay.
+ * Those tiles are dropped rather than resolved, so the card cannot carry
+ * personal financial data even if a future tile adds a new token — the test is
+ * "does this contain a placeholder", not "is this the salary one". Every
+ * question keeps at least one given, which registry.test-style sweeps here
+ * confirm, so the card never loses its setup.
+ */
+export function sharedFacts(fixed: CallFact[]): CallFact[] {
+  return fixed.filter((f) => !f.v.includes('{{'))
+}
 
 /* ---- Determinism ------------------------------------------------------------
- * Every irregular thing on the receipt is seeded, never random. Two players who
- * get the same result must get the same barcode, and one player who screenshots
- * the card and then shares the PNG must get the same tear on both.
+ * Every irregular thing on the napkin is seeded, never random. The same card
+ * must draw the same way every time it is rendered — on screen, in the PNG, and
+ * after a reload — or the sender notices the paper change shape under them.
  */
 
 /** FNV-1a. Small, fast, and — unlike a sum of char codes — sensitive to order. */
@@ -71,7 +209,7 @@ function hash32(s: string): number {
 
 /** xorshift32. Deterministic, no global state, uniform enough for decoration. */
 function prng(seed: number): () => number {
-  // 0 is xorshift's fixed point: it would return 0 forever and every receipt
+  // 0 is xorshift's fixed point: it would return 0 forever and every napkin
   // seeded with it would tear in a perfectly straight line.
   let s = seed >>> 0 || 0x9e3779b9
   return () => {
@@ -89,65 +227,15 @@ function seedOf(seed: string | number): number {
 }
 
 /**
- * The seed for one player's receipt.
+ * The seed for one napkin.
  *
- * Built from the *result*, not the call: two people who played the same call
- * differently get visibly different barcodes, which is the entire reason the
- * barcode is on there.
+ * Built from what is printed on it — the question and its answer — and not from
+ * the sender. Two people sharing the same fact get the same paper, which is
+ * correct now that the card is about the fact; and toggling the optional guess
+ * on does not re-tear the paper under the sender's hands.
  */
-export function receiptSeed(input: ReceiptInput): string {
-  return [
-    input.callNo,
-    input.value,
-    Math.round(input.at65),
-    Math.round(input.delta),
-    input.verdict,
-  ].join(':')
-}
-
-/* ---- Barcode ----------------------------------------------------------------- */
-
-/** Bars plus spaces, alternating, starting and ending on a bar. */
-export const BARCODE_MODULES = 47
-export const BARCODE_MIN_WIDTH = 1
-export const BARCODE_MAX_WIDTH = 4
-
-/**
- * Widths, in module units, of the alternating bars and spaces — even indices are
- * ink, odd indices are paper. Not a real symbology: it encodes nothing scannable,
- * it is a fingerprint of the result that two different plays cannot share.
- */
-export function barcodeWidths(seed: string | number): number[] {
-  const rnd = prng(seedOf(seed))
-  const span = BARCODE_MAX_WIDTH - BARCODE_MIN_WIDTH + 1
-  const out: number[] = new Array(BARCODE_MODULES)
-  for (let i = 0; i < BARCODE_MODULES; i++) {
-    out[i] = BARCODE_MIN_WIDTH + Math.floor(rnd() * span)
-  }
-  return out
-}
-
-/** Total module count, so a renderer can size one module to the space it has. */
-export function barcodeUnits(widths: number[]): number {
-  return widths.reduce((a, b) => a + b, 0)
-}
-
-/**
- * The digits under the barcode. Call, position (in hundredths, so a 7.5% play
- * does not round away), and the projection — the three numbers that produced the
- * bars above them.
- *
- * The widths are sized to the widest real input, not to the median one: the
- * repair call runs to $4,000 (six digits once scaled) and a 22-year-old on the
- * top of the salary slider clears eight figures at 65. A field that grew a digit
- * would push COMPOUND.DAY off the paper, because the foot is one no-wrap flex
- * row inside a clip-path — so the slice truncates from the left rather than let
- * anything past those ranges reflow the line.
- */
-export function receiptCode(input: ReceiptInput): string {
-  const pad = (n: number, len: number) =>
-    String(Math.abs(Math.round(n))).padStart(len, '0').slice(-len)
-  return `${pad(input.callNo, 4)} ${pad(input.value * 100, 6)} ${pad(input.at65, 8)}`
+export function napkinSeed(input: NapkinInput): string {
+  return `${input.questionNo}:${input.answer}`
 }
 
 /* ---- Torn edge --------------------------------------------------------------- */
@@ -160,7 +248,7 @@ export interface TearPoint {
 }
 
 /**
- * The irregular edge of a torn-off receipt.
+ * The irregular edge of paper pulled off a stack.
  *
  * `y` is normalised so the same path serves a 10px CSS clip and a 26px canvas
  * one. Depth is deliberately not uniform: a tear is mostly shallow fibre with the
@@ -186,7 +274,7 @@ export function tearPath(seed: string | number, width: number, segments: number)
   return points
 }
 
-/** Top and bottom tear differently, but both follow from the one receipt seed. */
+/** Top and bottom tear differently, but both follow from the one napkin seed. */
 export function tearSeeds(seed: string | number): { top: string; bottom: string } {
   return { top: `${seed}/top`, bottom: `${seed}/bottom` }
 }
@@ -210,131 +298,88 @@ export function tearClipPath(seed: string | number, depth: number, segments = TE
   return `polygon(${[...head, ...foot].join(',')})`
 }
 
-/* ---- Wording ------------------------------------------------------------------ */
+/* ---- Pen stroke --------------------------------------------------------------- */
 
-/**
- * The stamp. `over` is not a loss — on most calls it means the player pushed
- * past the optimal position rather than fell short of it — so it gets its own
- * word instead of being folded into the red one.
- */
-export function stampText(verdict: Verdict): string {
-  switch (verdict) {
-    case 'optimal':
-      return 'OPTIMAL PLAY'
-    case 'short':
-      return 'MONEY LEFT BEHIND'
-    case 'over':
-      return 'OVERSHOT'
-  }
+export const PEN_SEGMENTS = 28
+
+export interface StrokePoint {
+  /** 0..width, monotonically increasing. */
+  x: number
+  /** -1..1 — a fraction of the amplitude the caller chooses. */
+  y: number
 }
 
 /**
- * How the delta figure is coloured.
+ * The line someone draws under the number that matters.
  *
- * Taken from the sign of the money, never from the verdict. The stamp is a
- * judgement on the play and is red whenever the play was not the best one; the
- * figure beside it is a fact, and colouring an `over` play's very real loss in
- * neutral ink — which is what keying this off `verdict === 'short'` did — left
- * the two marks disagreeing about the same number.
- */
-export type DeltaTone = 'loss' | 'gain' | 'even'
-
-/** The line under the total: this play against the best one, at 65. */
-export function deltaLine(input: ReceiptInput): {
-  label: string
-  value: string
-  tone: DeltaTone
-} {
-  const label = 'VS OPTIMAL'
-  // `money` rounds to the dollar, so a delta under fifty cents would print as
-  // "−$0" — a loss of nothing, stated as a loss.
-  const rounded = Math.round(input.delta)
-  if (input.verdict === 'optimal' || rounded === 0) return { label, value: 'EVEN', tone: 'even' }
-  // A true minus sign, not a hyphen: at this size a hyphen next to a dollar sign
-  // reads as a dash in the label above it.
-  const sign = rounded < 0 ? '−' : '+'
-  return {
-    label,
-    value: `${sign}${money(Math.abs(rounded))}`,
-    tone: rounded < 0 ? 'loss' : 'gain',
-  }
-}
-
-/** `7%`, `$350`, `12 MONTHS` — the position, formatted the way the control showed it. */
-export function playValue(input: ReceiptInput): string {
-  const n = Number.isInteger(input.value) ? String(input.value) : input.value.toFixed(2)
-  return input.unit ? `${n}${input.unit}` : money(input.value)
-}
-
-/** The line items, capped at what fits above the total without shrinking type. */
-export const MAX_LINES = 6
-
-export function receiptLines(input: ReceiptInput): BreakdownLine[] {
-  // Several compute functions open their breakdown by stating the position in
-  // their own units, which put the same number on the receipt twice under two
-  // labels: "YOUR PLAY 63bps" sitting directly above "EXPENSE RATIO 63 BP".
-  //
-  // Where that happens the compute function's line wins and the generic one is
-  // dropped, because "EXPENSE RATIO" says what the number is and "YOUR PLAY"
-  // only says that it was chosen. The play line is prepended everywhere else,
-  // since a receipt that never states what you picked is unreadable to whoever
-  // you sent it to.
-  const rest = input.breakdown.filter((l) => l.label.toUpperCase() !== 'YOUR PLAY')
-  // The check runs on the lines that will actually be printed, not on the whole
-  // breakdown. Asking the full list whether the position is stated and then
-  // cutting the list to six can drop the very line that stated it, leaving a
-  // receipt that never says what was chosen — which is the one thing it must say.
-  const shown = rest.slice(0, MAX_LINES)
-  if (shown.some((l) => statesPlay(l, input.value))) return shown
-  const play: BreakdownLine = { label: 'YOUR PLAY', value: playValue(input) }
-  return [play, ...rest].slice(0, MAX_LINES)
-}
-
-/**
- * Whether a breakdown line already tells the player where they left the control.
+ * This is the napkin's answer to the old barcode: one irregular mark, derived
+ * from what is on the card, so two different facts are visibly two different
+ * objects and the same fact always redraws identically.
  *
- * The emphasised line is excluded: it is the receipt's punchline, so on a call
- * whose headline figure happens to equal the position it cannot also be read as
- * a restatement of it, or the receipt would lose the play entirely.
+ * A pen wanders rather than jumps, so each point steps from the last one with a
+ * pull back toward the baseline — white noise at the same amplitude reads as a
+ * zigzag, and an unpulled random walk sticks to one rail and reads as a wave.
+ * Both ends taper to zero, because a stroke that stops mid-wobble looks cut off
+ * rather than lifted.
  */
-function statesPlay(line: BreakdownLine, value: number): boolean {
-  if (line.emphasis) return false
-  // At the bottom of a control everything on the receipt is zero, so any line
-  // would match and the play would be dropped for looking like a restatement —
-  // leaving a receipt that never says the player chose nothing, which on the
-  // match call is the most consequential answer available.
-  if (value === 0) return false
-  const first = line.value.match(/-?\d[\d,]*(?:\.\d+)?/)
-  if (first === null) return false
-  // Magnitude only. A dial that runs through zero carries its sign in the
-  // label — the refund call prints "YOU OWE IN APRIL $2,000" rather than
-  // "-$2,000", because a negative owing reads as a refund. Comparing signed
-  // would miss that and print the same fact twice under two labels.
-  return Math.abs(Number(first[0].replace(/,/g, ''))) === Math.abs(value)
+export function penStroke(
+  seed: string | number,
+  width: number,
+  segments = PEN_SEGMENTS,
+): StrokePoint[] {
+  const n = Math.max(1, Math.floor(segments))
+  const rnd = prng(seedOf(seed))
+  const points: StrokePoint[] = []
+
+  let y = 0
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    y = Math.max(-1, Math.min(1, y * 0.88 + (rnd() - 0.5) * 0.5))
+    // 0 at both ends, ~1 across the middle: the pen coming down and lifting.
+    // The ends are pinned rather than trusted to the curve — `Math.sin(Math.PI)`
+    // is 1.2e-16, which taper turns into a visible-in-a-diff 5e-10 rather than
+    // the zero the shape is defined by.
+    const taper = i === 0 || i === n ? 0 : Math.pow(Math.sin(Math.PI * t), 0.6)
+    // A negative wobble times a zero taper is -0, which prints as "-0.000" in
+    // the path data and fails an Object.is check against the baseline.
+    const wobble = y * taper
+    points.push({ x: t * width, y: wobble === 0 ? 0 : wobble })
+  }
+  return points
+}
+
+/** `M0,1 L3.5,1.2 …` — the stroke as an SVG path, y centred on `mid`. */
+export function penPathData(points: StrokePoint[], mid: number): string {
+  return points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)},${(mid + p.y).toFixed(3)}`)
+    .join(' ')
 }
 
 /* ---- Plain text ---------------------------------------------------------------
  * The share path that always works. Exactly five lines: any more and iMessage
  * collapses it behind a "read more", which is the same as not sending it.
+ *
+ * The sender's guess is not in here at all. The image can carry it in small
+ * type where it reads as a footnote; five lines of chat text cannot, and a
+ * whole line spent on "I said 18mo" would put the score back at the centre of
+ * the thing this rewrite exists to take it out of.
  */
 
-export function receiptText(input: ReceiptInput): string {
-  const head = `COMPOUND No.${input.callNo} · ${input.date}`
-  const at65 = `${moneyCompact(input.at65)} at 65`
-
-  const verdict =
-    input.verdict === 'optimal'
-      ? 'OPTIMAL PLAY · nothing left on the table'
-      : input.verdict === 'short'
-        ? `LEFT BEHIND · ${moneyCompact(Math.abs(input.delta))} by 65`
-        : `OVERSHOT · ${moneyCompact(Math.abs(input.delta))} off the optimal play`
+export function napkinText(input: NapkinInput, origin: string = DOMAIN): string {
+  const handle = shareHandle(input.questionNo, origin)
+  // The disclaimer rides with the invitation rather than taking a line of its
+  // own, because the five are all spoken for and the fact is worth more than
+  // the whitespace.
+  const foot = handle
+    ? `Guess it yourself at ${handle}. Estimates, not advice.`
+    : 'Estimates, not advice.'
 
   return [
-    head,
-    input.title,
-    `My play: ${playValue(input)} · ${at65}`,
-    verdict,
-    `Play No.${input.callNo} at ${DOMAIN}`,
+    `Napkin · question ${input.questionNo}`,
+    input.scene,
+    input.question,
+    `The answer: ${input.answer}, ${input.note}.`,
+    foot,
   ].join('\n')
 }
 
@@ -345,26 +390,26 @@ export function receiptText(input: ReceiptInput): string {
  * behind on the old one.
  */
 
-type Palette = Record<'bg' | 'paper' | 'ink' | 'loss', string>
-type Faces = Record<'display' | 'data', string>
+type Palette = Record<'bg' | 'paper' | 'ink', string>
+type Faces = Record<'display' | 'body' | 'data', string>
 
 /** Blur and offset are proportional to the card, so both sizes lift the same. */
 const SHADOW = { blur: 0.055, dy: 0.024, color: 'rgba(0,0,0,0.62)' }
 
-/** The receipt is never square to the frame. One degree, never two. */
+/** The paper is never square to the frame. One degree, never two. */
 const ROTATION = (1.05 * Math.PI) / 180
 
 function readTokens(): { palette: Palette; faces: Faces } {
   const cs = getComputedStyle(document.documentElement)
   const v = (name: string) => cs.getPropertyValue(name).trim()
 
-  const palette = { bg: v('--bg'), paper: v('--paper'), ink: v('--ink'), loss: v('--loss') }
-  const faces = { display: v('--display'), data: v('--data') }
+  const palette = { bg: v('--bg'), paper: v('--paper'), ink: v('--ink') }
+  const faces = { display: v('--display'), body: v('--body'), data: v('--data') }
 
   if (!palette.paper || !faces.data) {
     // Canvas has no cascade to fall back through: an unresolved token silently
-    // paints the previous fill, which would produce a black-on-black receipt.
-    throw new Error('receipt: design tokens unavailable')
+    // paints the previous fill, which would produce a black-on-black card.
+    throw new Error('napkin: design tokens unavailable')
   }
   return { palette, faces }
 }
@@ -415,38 +460,35 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, max: number, maxLines
 
 /* Card-local geometry, in the natural units the design was drawn at. */
 const CARD_W = 860
-const PAD = 48
+const PAD = 52
 const TEAR_D = 26
-const BRAND_H = 84
-const ROW_H = 54
-
-/** Display sizes the title may be set at, largest first. */
-const TITLE_SIZES = [44, 38, 33]
-const TITLE_MAX_LINES = 3
+const ROW_H = 46
 
 /**
- * The title, at the largest size that does not lose a word.
+ * Set at the largest size that does not lose a word.
  *
- * `wrap` truncates silently, and a title clipped in the PNG is a sentence the
- * sender never sees go missing. Twelve words fit three lines at 44px today, so
- * the smaller sizes are a floor rather than a design, and they cost nothing.
+ * `wrap` truncates silently, and a sentence clipped in the PNG is one the sender
+ * never sees go missing. The smaller sizes are a floor rather than a design:
+ * every real question fits the first size today, and they cost nothing.
  */
-function fitTitle(
+function fitText(
   ctx: CanvasRenderingContext2D,
-  title: string,
+  text: string,
   inner: number,
-  font: (weight: number, size: number, face: keyof Faces) => string,
+  sizes: number[],
+  maxLines: number,
+  font: (size: number) => string,
 ): { size: number; lineHeight: number; lines: string[] } {
-  for (const size of TITLE_SIZES) {
-    ctx.font = font(700, size, 'display')
+  for (const size of sizes) {
+    ctx.font = font(size)
     // One more line than allowed, purely to detect an overflow the cap would hide.
-    const lines = wrap(ctx, title, inner, TITLE_MAX_LINES + 1)
-    const last = size === TITLE_SIZES[TITLE_SIZES.length - 1]
-    if (lines.length <= TITLE_MAX_LINES || last) {
-      return { size, lineHeight: Math.round(size * 1.14), lines: lines.slice(0, TITLE_MAX_LINES) }
+    const lines = wrap(ctx, text, inner, maxLines + 1)
+    const last = size === sizes[sizes.length - 1]
+    if (lines.length <= maxLines || last) {
+      return { size, lineHeight: Math.round(size * 1.16), lines: lines.slice(0, maxLines) }
     }
   }
-  throw new Error('receipt: no title size')
+  throw new Error('napkin: no size fits')
 }
 
 function tornOutline(ctx: CanvasRenderingContext2D, seed: string, w: number, h: number): void {
@@ -466,19 +508,19 @@ function tornOutline(ctx: CanvasRenderingContext2D, seed: string, w: number, h: 
 
 function dashedRule(ctx: CanvasRenderingContext2D, y: number, w: number, ink: string): void {
   ctx.save()
-  ctx.globalAlpha = 0.38
+  ctx.globalAlpha = 0.3
   ctx.fillStyle = ink
-  for (let x = PAD; x < w - PAD; x += 22) ctx.fillRect(x, y, 10, 5)
+  for (let x = PAD; x < w - PAD; x += 22) ctx.fillRect(x, y, 10, 4)
   ctx.restore()
 }
 
 /**
- * Draws one receipt into the card's own coordinate space and returns its height.
+ * Draws one napkin into the card's own coordinate space and returns its height.
  * Called twice: once with `measure` to size the card, once to actually paint it.
  */
 function paintCard(
   ctx: CanvasRenderingContext2D,
-  input: ReceiptInput,
+  input: NapkinInput,
   tokens: { palette: Palette; faces: Faces },
   measure: boolean,
 ): number {
@@ -488,150 +530,168 @@ function paintCard(
   const font = (weight: number, size: number, face: keyof Faces) =>
     `${weight} ${size}px ${faces[face]}`
 
-  const lines = receiptLines(input)
-  const stamp = stampText(input.verdict)
-  const delta = deltaLine(input)
+  const question = fitText(ctx, input.question, inner, [54, 47, 41], 3, (s) =>
+    font(700, s, 'display'),
+  )
+  const scene = fitText(ctx, input.scene, inner, [30], 3, (s) => font(400, s, 'body'))
+  const answer = fitText(ctx, input.answer, inner, [76, 64, 52], 2, (s) => font(700, s, 'display'))
+  const note = fitText(ctx, input.note, inner, [28], 3, (s) => font(400, s, 'body'))
+  const rule = fitText(ctx, input.rule, inner, [30], 3, (s) => font(400, s, 'body'))
 
-  const title = fitTitle(ctx, input.title.toUpperCase(), inner, font)
-
-  let y = TEAR_D + BRAND_H
+  let y = TEAR_D + 54
 
   if (!measure) {
-    // Brand lockup is a solid ink band with knockout type. At thumbnail size the
-    // words are gone but the band survives, and the band is the logo.
+    // The wordmark is set in the data face, not the display one: it has to read
+    // as a stamp on paper rather than as the first line of the card's copy.
     ctx.fillStyle = palette.ink
-    ctx.fillRect(0, TEAR_D, w, BRAND_H)
-    ctx.fillStyle = palette.paper
-    ctx.font = font(700, 37, 'data')
-    ctx.textBaseline = 'middle'
-    const track = 20
-    drawTracked(ctx, 'COMPOUND', (w - trackedWidth(ctx, 'COMPOUND', track)) / 2, TEAR_D + BRAND_H / 2, track)
-    ctx.textBaseline = 'alphabetic'
-  }
-
-  y += 58
-  if (!measure) {
-    ctx.font = font(400, 26, 'data')
-    ctx.globalAlpha = 0.6
-    ctx.fillStyle = palette.ink
-    drawTracked(ctx, `NO.${input.callNo}`, PAD, y, 3.4)
-    drawTracked(ctx, input.date, w - PAD, y, 3.4, 'right')
+    ctx.font = font(700, 30, 'data')
+    drawTracked(ctx, 'NAPKIN', PAD, y, 12)
+    ctx.font = font(400, 24, 'data')
+    ctx.globalAlpha = 0.55
+    drawTracked(ctx, `QUESTION ${input.questionNo} · ${input.date}`, w - PAD, y, 3.4, 'right')
     ctx.globalAlpha = 1
   }
 
-  y += 26
+  y += 24
   if (!measure) dashedRule(ctx, y, w, palette.ink)
 
-  y += 54
+  y += 52
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(700, title.size, 'display')
-    title.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * title.lineHeight))
+    ctx.globalAlpha = 0.62
+    ctx.font = font(400, scene.size, 'body')
+    scene.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * scene.lineHeight))
+    ctx.globalAlpha = 1
   }
-  y += (title.lines.length - 1) * title.lineHeight + 34
+  y += (scene.lines.length - 1) * scene.lineHeight + 62
 
-  if (!measure) dashedRule(ctx, y, w, palette.ink)
-  y += 44
+  if (!measure) {
+    ctx.fillStyle = palette.ink
+    ctx.font = font(700, question.size, 'display')
+    question.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * question.lineHeight))
+  }
+  y += (question.lines.length - 1) * question.lineHeight + 50
 
-  for (const line of lines) {
+  for (const given of input.givens) {
     if (!measure) {
-      const bold = line.emphasis === true
       ctx.fillStyle = palette.ink
-      ctx.font = font(bold ? 700 : 400, 27, 'data')
-      ctx.globalAlpha = bold ? 1 : 0.62
-      drawTracked(ctx, line.label.toUpperCase(), PAD, y, 4.3)
-      const labelEnd = PAD + trackedWidth(ctx, line.label.toUpperCase(), 4.3)
+      ctx.font = font(400, 23, 'data')
+      ctx.globalAlpha = 0.55
+      drawTracked(ctx, given.k, PAD, y, 3.6)
+      const labelEnd = PAD + trackedWidth(ctx, given.k, 3.6)
 
-      ctx.font = font(bold ? 700 : 400, 32, 'data')
+      ctx.font = font(700, 25, 'data')
       ctx.globalAlpha = 1
-      drawTracked(ctx, line.value, w - PAD, y, 1.3, 'right')
-      const valueStart = w - PAD - trackedWidth(ctx, line.value, 1.3)
+      drawTracked(ctx, given.v, w - PAD, y, 1.3, 'right')
+      const valueStart = w - PAD - trackedWidth(ctx, given.v, 1.3)
 
       // Dotted leader, drawn as discrete squares rather than a dashed stroke so
       // the dots land on whole pixels at every scale.
-      ctx.globalAlpha = 0.34
-      for (let x = labelEnd + 15; x < valueStart - 15; x += 12) ctx.fillRect(x, y - 5, 5, 5)
+      ctx.globalAlpha = 0.3
+      for (let x = labelEnd + 14; x < valueStart - 14; x += 12) ctx.fillRect(x, y - 5, 5, 5)
       ctx.globalAlpha = 1
     }
     y += ROW_H
   }
 
-  y += 6
+  y += 22
+  if (!measure) dashedRule(ctx, y, w, palette.ink)
+
+  y += 46
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.fillRect(PAD, y, inner, 7)
-    ctx.fillRect(PAD, y + 12, inner, 7)
+    ctx.globalAlpha = 0.55
+    ctx.font = font(400, 23, 'data')
+    drawTracked(ctx, 'THE ANSWER', PAD, y, 3.6)
+    ctx.globalAlpha = 1
   }
 
-  y += 82
+  y += answer.size + 10
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(400, 27, 'data')
-    ctx.globalAlpha = 0.62
-    drawTracked(ctx, 'TOTAL AT 65', PAD, y - 10, 4.3)
-    ctx.globalAlpha = 1
-    ctx.font = font(700, 92, 'display')
-    ctx.fillText(money(input.at65), PAD, y + 74)
+    ctx.font = font(700, answer.size, 'display')
+    answer.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * answer.lineHeight))
   }
+  y += (answer.lines.length - 1) * answer.lineHeight + 26
 
-  y += 120
   if (!measure) {
-    ctx.font = font(400, 30, 'data')
-    ctx.fillStyle = delta.tone === 'loss' ? palette.loss : palette.ink
-    ctx.globalAlpha = delta.tone === 'loss' ? 1 : 0.62
-    drawTracked(ctx, delta.label, PAD, y, 4.3)
-    ctx.globalAlpha = 1
-    drawTracked(ctx, delta.value, w - PAD, y, 1.3, 'right')
-  }
-
-  y += 112
-  if (!measure) {
-    const ink = input.verdict === 'optimal' ? palette.ink : palette.loss
+    // The stroke runs under the figure only, not the column: a pen underlines
+    // what it is underlining. Measured in the face the figure was set in, which
+    // the branch above has already selected.
+    ctx.font = font(700, answer.size, 'display')
+    const widest = answer.lines.reduce((a, l) => Math.max(a, ctx.measureText(l).width), 0)
+    const strokeW = Math.min(inner, widest + 24)
     ctx.save()
-    ctx.translate(w / 2, y)
-    ctx.rotate((-2.6 * Math.PI) / 180)
-    ctx.font = font(700, 33, 'data')
-    const track = 7
-    const text = `*** ${stamp} ***`
-    const tw = trackedWidth(ctx, text, track)
-    const boxW = tw + 64
-    ctx.globalAlpha = 0.9
-    ctx.fillStyle = ink
-    ctx.fillRect(-boxW / 2, -46, boxW, 4)
-    ctx.fillRect(-boxW / 2, -38, boxW, 4)
-    ctx.fillRect(-boxW / 2, 34, boxW, 4)
-    ctx.fillRect(-boxW / 2, 42, boxW, 4)
-    ctx.textBaseline = 'middle'
-    drawTracked(ctx, text, -tw / 2, 0, track)
-    ctx.textBaseline = 'alphabetic'
+    ctx.strokeStyle = palette.ink
+    ctx.lineWidth = 7
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.globalAlpha = 0.85
+    ctx.beginPath()
+    for (const [i, p] of penStroke(napkinSeed(input), strokeW).entries()) {
+      const py = y + p.y * 9
+      if (i === 0) ctx.moveTo(PAD + p.x, py)
+      else ctx.lineTo(PAD + p.x, py)
+    }
+    ctx.stroke()
     ctx.restore()
   }
 
-  y += 96
-  if (!measure) {
-    const widths = barcodeWidths(receiptSeed(input))
-    const unit = inner / barcodeUnits(widths)
-    ctx.fillStyle = palette.ink
-    let x = PAD
-    widths.forEach((mods, i) => {
-      const bw = mods * unit
-      if (i % 2 === 0) ctx.fillRect(x, y, bw, 88)
-      x += bw
-    })
-  }
-
-  y += 88 + 36
+  y += 42
   if (!measure) {
     ctx.fillStyle = palette.ink
-    ctx.font = font(400, 27, 'data')
-    ctx.globalAlpha = 0.6
-    drawTracked(ctx, receiptCode(input), PAD, y, 4.3)
+    ctx.globalAlpha = 0.62
+    ctx.font = font(400, note.size, 'body')
+    note.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * note.lineHeight))
     ctx.globalAlpha = 1
-    ctx.font = font(700, 27, 'data')
-    drawTracked(ctx, DOMAIN.toUpperCase(), w - PAD, y, 4.3, 'right')
+  }
+  y += (note.lines.length - 1) * note.lineHeight + 54
+
+  if (!measure) dashedRule(ctx, y, w, palette.ink)
+
+  y += 44
+  if (!measure) {
+    ctx.fillStyle = palette.ink
+    ctx.globalAlpha = 0.55
+    ctx.font = font(400, 23, 'data')
+    drawTracked(ctx, 'THE RULE', PAD, y, 3.6)
+    ctx.globalAlpha = 1
   }
 
-  return y + 30 + TEAR_D
+  y += 42
+  if (!measure) {
+    ctx.fillStyle = palette.ink
+    ctx.font = font(400, rule.size, 'body')
+    rule.lines.forEach((l, i) => ctx.fillText(l, PAD, y + i * rule.lineHeight))
+  }
+  y += (rule.lines.length - 1) * rule.lineHeight + 48
+
+  if (input.guess !== undefined) {
+    if (!measure) {
+      ctx.fillStyle = palette.ink
+      ctx.globalAlpha = 0.45
+      ctx.font = font(400, 23, 'data')
+      drawTracked(ctx, `I GUESSED ${input.guess.toUpperCase()}`, PAD, y, 3.6)
+      ctx.globalAlpha = 1
+    }
+    y += 42
+  }
+
+  if (!measure) {
+    ctx.fillStyle = palette.ink
+    ctx.globalAlpha = 0.45
+    ctx.font = font(400, 21, 'data')
+    drawTracked(ctx, 'ESTIMATES, NOT ADVICE.', PAD, y, 3)
+    const handle = shareHandle(input.questionNo)
+    if (handle) {
+      ctx.globalAlpha = 0.8
+      ctx.font = font(700, 21, 'data')
+      drawTracked(ctx, handle.toUpperCase(), w - PAD, y, 3, 'right')
+    }
+    ctx.globalAlpha = 1
+  }
+
+  return y + 34 + TEAR_D
 }
 
 /**
@@ -650,25 +710,23 @@ async function loadFaces(faces: Faces, sizes: number[]): Promise<void> {
     sizes.flatMap((px) => [`400 ${px}px ${stack}`, `700 ${px}px ${stack}`]),
   )
   // A face that will not load is not a reason to refuse the share: the draw
-  // still produces a legible receipt in the fallback stack.
+  // still produces a legible card in the fallback stack.
   await Promise.all(specs.map((spec) => document.fonts.load(spec).catch(() => [])))
   await document.fonts.ready
 }
 
-/**
- * Draws the receipt to a canvas and returns a PNG.
- */
-export async function renderReceipt(input: ReceiptInput, size: ReceiptSize): Promise<Blob> {
+/** Draws the napkin to a canvas and returns a PNG. */
+export async function renderNapkin(input: NapkinInput, size: CardSize): Promise<Blob> {
   const tokens = readTokens()
   // One size per family is enough — a face is one file, not one file per size —
   // but both weights are asked for, because the labels and the figures differ.
-  await loadFaces(tokens.faces, [92])
+  await loadFaces(tokens.faces, [64])
 
   const canvas = document.createElement('canvas')
   canvas.width = size.width
   canvas.height = size.height
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('receipt: 2d context unavailable')
+  if (!ctx) throw new Error('napkin: 2d context unavailable')
 
   ctx.fillStyle = tokens.palette.bg
   ctx.fillRect(0, 0, size.width, size.height)
@@ -678,11 +736,8 @@ export async function renderReceipt(input: ReceiptInput, size: ReceiptSize): Pro
   // The card is sized to the frame rather than the frame to the card, so the
   // story and the square crops are the same drawing at two scales instead of two
   // layouts that can drift apart.
-  const margin = size.width * 0.085
-  const scale = Math.min(
-    (size.width - margin * 2) / CARD_W,
-    (size.height - margin * 2) / cardH,
-  )
+  const margin = size.width * 0.075
+  const scale = Math.min((size.width - margin * 2) / CARD_W, (size.height - margin * 2) / cardH)
 
   ctx.save()
   ctx.translate(size.width / 2, size.height / 2)
@@ -694,16 +749,16 @@ export async function renderReceipt(input: ReceiptInput, size: ReceiptSize): Pro
   ctx.shadowColor = SHADOW.color
   // Shadow blur and offset are the one part of canvas state the transform does
   // not touch — they are output pixels — so both are scaled by hand. Scaling
-  // only the offset, as this did, kept the blur locked to the card's natural
-  // size and quietly broke the lift on any frame the card had to shrink into.
+  // only the offset kept the blur locked to the card's natural size and quietly
+  // broke the lift on any frame the card had to shrink into.
   ctx.shadowBlur = CARD_W * SHADOW.blur * scale
   ctx.shadowOffsetY = CARD_W * SHADOW.dy * scale
   ctx.fillStyle = tokens.palette.paper
-  tornOutline(ctx, receiptSeed(input), CARD_W, cardH)
+  tornOutline(ctx, napkinSeed(input), CARD_W, cardH)
   ctx.fill()
   ctx.restore()
 
-  tornOutline(ctx, receiptSeed(input), CARD_W, cardH)
+  tornOutline(ctx, napkinSeed(input), CARD_W, cardH)
   ctx.clip()
   paintCard(ctx, input, tokens, false)
   ctx.restore()
@@ -711,7 +766,7 @@ export async function renderReceipt(input: ReceiptInput, size: ReceiptSize): Pro
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) resolve(blob)
-      else reject(new Error('receipt: encoding failed'))
+      else reject(new Error('napkin: encoding failed'))
     }, 'image/png')
   })
 }
@@ -732,7 +787,7 @@ async function copy(text: string): Promise<ShareOutcome> {
   }
 }
 
-async function shareText(text: string): Promise<ShareOutcome> {
+async function shareAsText(text: string): Promise<ShareOutcome> {
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ text })
@@ -747,26 +802,26 @@ async function shareText(text: string): Promise<ShareOutcome> {
 /**
  * Out of the app, by whichever route the platform actually supports.
  *
- * Image first, because the receipt only works as a picture; text second, because
+ * Image first, because the card only works as a picture; text second, because
  * group chats strip images; clipboard last. Sharing *files* is a separate
  * capability from sharing text — `canShare({files})` has to be asked
  * specifically, and calling `share()` with a payload the platform does not
  * support throws rather than degrading.
  */
 export async function shareReceipt(
-  input: ReceiptInput,
+  input: NapkinInput,
   mode: ShareMode = 'image',
-  size: ReceiptSize = SQUARE,
+  size: CardSize = SQUARE,
 ): Promise<ShareOutcome> {
   if (typeof navigator === 'undefined') return 'failed'
 
-  if (mode === 'link') return await copy(urlForCall(input.callNo))
-  if (mode === 'text') return await copy(receiptText(input))
+  if (mode === 'link') return await copy(shareLink(input.questionNo))
+  if (mode === 'text') return await copy(napkinText(input))
 
-  const text = receiptText(input)
+  const text = napkinText(input)
   try {
-    const blob = await renderReceipt(input, size)
-    const file = new File([blob], `compound-${input.callNo}.png`, { type: 'image/png' })
+    const blob = await renderNapkin(input, size)
+    const file = new File([blob], `napkin-${input.questionNo}.png`, { type: 'image/png' })
     const payload = { files: [file] }
     if (typeof navigator.share === 'function' && navigator.canShare?.(payload)) {
       try {
@@ -783,5 +838,5 @@ export async function shareReceipt(
     // below is the whole reason it exists.
   }
 
-  return await shareText(text)
+  return await shareAsText(text)
 }

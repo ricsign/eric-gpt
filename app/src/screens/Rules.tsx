@@ -1,54 +1,101 @@
 import { useMemo } from 'react'
-import { callNumber, formatCallDate } from '../lib/schedule'
-import type { Call, CallResult } from '../calls/types'
+import { motion, useReducedMotion } from 'motion/react'
+import { ActionPicker } from '../ui/ActionPicker'
+import type { ActionState, Call, CallResult } from '../calls/types'
 import './Rules.css'
 
 /**
- * Everything the player has earned, one line each.
+ * Everything you keep, and the only screen that has to work outside the app.
  *
- * This is the usefulness payload — the page someone reopens in a dealership or
- * before signing a lease — so it is the one surface that has to survive leaving
- * the app. It prints as black-on-white type (see Rules.css), which is also what
- * a "save as PDF" produces, and `onExport` lets a caller swap in an image
+ * This is the deliverable. A rule on its own is a thing to agree with and
+ * forget by Thursday, so every rule here is followed by the one errand that
+ * makes it real and a control for saying where you are with it. Answer the
+ * ten questions and this page is what you are left holding.
+ *
+ * It prints as black type on white (see Rules.css), which is also what "save
+ * as PDF" produces, because the moment it earns its keep is in a dealership or
+ * ten minutes before signing a lease — with the phone in one hand and no
+ * intention of opening an app. `onExport` lets a caller swap in an image
  * export without this screen knowing anything about canvases.
  *
- * A rule is earned by running into it, not by getting it right. The call that
- * cost you $188,000 is the one you remember.
+ * Unfinished first. The reader did not come here to admire what is already
+ * done, and burying the two open errands under six finished ones is how a
+ * reference page turns back into a trophy cabinet.
  */
+
+/**
+ * The sort. Open work, then finished work, then the questions that were never
+ * theirs to begin with — which sink rather than disappear, because a reader
+ * who set five aside should still be able to find them and change their mind.
+ */
+const RANK: Record<ActionState, number> = { open: 0, done: 1, na: 2 }
+
 export function Rules({
   results,
   calls,
+  actions,
   onClose,
   onExport,
+  onToggleAction,
 }: {
-  /** Real answers, oldest first. Practice runs must be filtered out upstream. */
+  /** Answers, oldest first. Practice runs are dropped here, wherever else they are. */
   results: CallResult[]
+  /** The whole set, in the order it is asked in. */
   calls: Call[]
+  /** Where each errand stands, by question id. Missing means not started. */
+  actions: Record<number, ActionState>
   onClose: () => void
   /** Defaults to the print path, which is also how the page is saved as a PDF. */
   onExport?: () => void
+  onToggleAction: (callId: number, state: ActionState) => void
 }) {
-  const earned = useMemo(() => earnedRules(results, calls), [results, calls])
+  const reduce = useReducedMotion()
 
-  // What is still sealed, by domain only. The wording of an unearned rule is
-  // the reward for playing the call, so it is never shown here — but the shape
-  // of the collection is, because a page that is three quarters empty on day
-  // one reads as a broken screen rather than as one with room to fill.
-  const sealed = useMemo(() => {
-    const has = new Set(earned.map((r) => r.callId))
-    return calls.filter((c) => !has.has(c.id)).map((c) => c.domain)
-  }, [calls, earned])
+  const answered = useMemo(
+    () => new Set(results.filter((r) => !r.practice).map((r) => r.callId)),
+    [results],
+  )
+
+  // Numbered by position in the set, not by the day it was answered. The
+  // number is how a reader cross-references this page against the home screen,
+  // and a date is only ever true of one of the two.
+  const numbered = useMemo(
+    () => calls.map((call, i) => ({ call, no: i + 1 })),
+    [calls],
+  )
+
+  const rows = useMemo(
+    () =>
+      numbered
+        .filter((r) => answered.has(r.call.id))
+        .map((r) => ({ ...r, state: actions[r.call.id] ?? ('open' as ActionState) }))
+        // Ties break on the set order, so two finished errands never swap
+        // places under the reader between one render and the next.
+        .sort((a, b) => RANK[a.state] - RANK[b.state] || a.no - b.no),
+    [numbered, actions, answered],
+  )
+
+  const sealed = useMemo(
+    () => numbered.filter((r) => !answered.has(r.call.id)),
+    [numbered, answered],
+  )
+
+  const todo = rows.filter((r) => r.state === 'open').length
 
   return (
     <div className="rules scroll">
+      {/* Printed pages leave the app and lose the app. Off the screen this is
+          the only thing that says what the sheet of paper is. */}
+      <p className="rules-mark">Napkin · ten money questions</p>
+
       <header className="rules-head">
-        <h1 className="rules-title">Rules</h1>
+        <h1 className="rules-title">My list</h1>
         <div className="rules-actions">
           <button
             className="rules-action data press"
             onClick={() => (onExport ? onExport() : window.print())}
           >
-            Export
+            Print
           </button>
           <button className="rules-action data press" onClick={onClose}>
             Close
@@ -57,83 +104,73 @@ export function Rules({
       </header>
 
       <p className="rules-count data-sm num">
-        {earned.length} {earned.length === 1 ? 'rule' : 'rules'} earned
+        {rows.length} {rows.length === 1 ? 'rule' : 'rules'} ·{' '}
+        {todo > 0 ? `${todo} to do` : 'nothing waiting'}
       </p>
 
-      {earned.length === 0 ? (
-        <p className="rules-empty">Close a call, keep its rule.</p>
+      {rows.length === 0 ? (
+        <p className="rules-empty">Answer a question and its rule lands here.</p>
       ) : (
         <ol className="rules-list">
-          {earned.map((r) => (
-            <li className="rules-row" key={r.callId}>
-              <div className="rules-meta data-sm num">
-                <span className="rules-no">No.{r.no}</span>
-                <span>{r.date}</span>
-                <span className="rules-tag">{r.domain}</span>
-              </div>
-              <p className="rules-text">{r.rule}</p>
-            </li>
+          {rows.map(({ call, no, state }) => (
+            // The list re-sorts the moment an errand is marked, so the row has
+            // to be seen moving. Without this it teleports, and a reader who
+            // tapped "Done" on row two watches an unrelated row two appear
+            // under their thumb.
+            <motion.li
+              className="rules-row"
+              key={call.id}
+              data-state={state}
+              layout
+              transition={
+                reduce ? { duration: 0 } : { type: 'spring', visualDuration: 0.28, bounce: 0 }
+              }
+            >
+              <p className="rules-q">
+                <span className="rules-no data-sm num">{no}</span>
+                <span className="rules-q-t">{call.question}</span>
+              </p>
+
+              {/* The rule is the part worth remembering; the errand under it is
+                  the part that changes a week. Neither is much use alone. */}
+              <p className="rules-text">{call.rule}</p>
+              <p className="rules-do">{call.action}</p>
+
+              <ActionPicker
+                callId={call.id}
+                state={state}
+                label={`The thing to do about question ${no}`}
+                onChange={onToggleAction}
+              />
+            </motion.li>
           ))}
         </ol>
       )}
 
       {sealed.length > 0 && (
         <section className="rules-sealed">
-          <p className="rules-count data-sm num">{sealed.length} still sealed</p>
+          <p className="rules-count data-sm num">{sealed.length} still to come</p>
           <ul className="rules-seal-list">
-            {sealed.map((domain, i) => (
-              <li className="rules-seal" key={`${domain}-${i}`}>
-                <span className="rules-tag data-sm">{domain}</span>
+            {sealed.map(({ call, no }) => (
+              <li className="rules-seal" key={call.id}>
+                {/* The question, not just its subject. The whole set is listed
+                    on the home screen, so withholding it here bought nothing
+                    and left nine rows that said "housing" and "tax" at someone
+                    trying to work out what they had signed up for. What is
+                    still hidden is the rule, which is the part you get by
+                    running into it. */}
+                <p className="rules-q">
+                  <span className="rules-no data-sm num">{no}</span>
+                  <span className="rules-q-t">{call.question}</span>
+                </p>
                 <span className="rules-seal-bar" aria-hidden="true" />
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <p className="rules-foot data-sm">Estimates, not advice.</p>
     </div>
   )
-}
-
-interface EarnedRule {
-  callId: number
-  no: number
-  date: string
-  rule: string
-  domain: string
-}
-
-/**
- * One row per rule, newest first.
- *
- * Deduplicated by call, because the library cycles: past day ten the same call
- * comes round again, and a Rules page that listed "Take the match before
- * anything else" four times would be a log, not a reference. The most recent
- * encounter wins, so the number and date point at the last time they met it.
- */
-function earnedRules(results: CallResult[], calls: Call[]): EarnedRule[] {
-  const byId = new Map(calls.map((c) => [c.id, c]))
-  const latest = new Map<number, CallResult>()
-
-  for (const r of results) {
-    const seen = latest.get(r.callId)
-    if (!seen || r.day >= seen.day) latest.set(r.callId, r)
-  }
-
-  return [...latest.values()]
-    .sort((a, b) => (a.day === b.day ? b.callId - a.callId : b.day.localeCompare(a.day)))
-    .flatMap((r) => {
-      // A result whose call is no longer in the library is dropped rather than
-      // rendered blank: the registry is the only source of a rule's wording.
-      const call = byId.get(r.callId)
-      if (!call) return []
-      return [
-        {
-          callId: r.callId,
-          no: callNumber(r.day),
-          date: formatCallDate(r.day),
-          rule: call.rule,
-          domain: call.domain,
-        },
-      ]
-    })
 }

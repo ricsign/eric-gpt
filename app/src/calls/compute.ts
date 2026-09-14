@@ -651,7 +651,9 @@ export const repairOrReplace: ComputeFn = (value, profile) => {
 /* ==========================================================================
  * 8. feeDragCall
  *
- * Value: expense ratio in basis points, 3-150.
+ * Value: the fund's yearly fee in dollars per $10,000 invested, 3-150.
+ * Numerically a basis point, but quoted in the unit a person can read off
+ * their own statement rather than one they have to be taught first.
  *
  * Model. A portfolio the player plausibly already has — one year of salary
  * invested, plus 10% of salary a month — run to 65 at 7% through

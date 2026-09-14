@@ -1,57 +1,60 @@
 /*
  * `tabSummary` is exported from this file rather than a sibling because it is
- * the definition of the number this screen exists to show, and the Tomorrow
- * screen reads the same function. It is pure, so the tests exercise it directly.
+ * the definition of what one answer turned out to be worth, and the suite
+ * exercises it directly — nothing in this project can mount React.
+ *
+ * The screen underneath it no longer renders money at all. What it used to
+ * lead with was a projection to 65 under the word "banked", which is a claim
+ * no app without an account behind it gets to make, and which on the first day
+ * read "$0" — the product congratulating someone for nothing. The arithmetic
+ * is still correct and still under test, so it stays; what changed is that a
+ * forty-year projection is no longer the thing this screen says about a person.
  */
 /* eslint-disable react/only-export-components */
 import { useMemo } from 'react'
-import { callNumber, compoundDay, formatCallDate, recentDays } from '../lib/schedule'
-import { daysBetween, moneyCompact } from '../lib/format'
-import type { CallResult, Profile, Verdict } from '../calls/types'
+import { ActionPicker } from '../ui/ActionPicker'
+import { daysBetween } from '../lib/format'
+import type { ActionState, Call, CallResult } from '../calls/types'
 import './Tab.css'
 
-/** Same horizon every compute function projects to. */
-const RETIRE_AT = 65
-
-const VERDICT_LABEL: Record<Verdict, string> = {
-  optimal: 'Optimal',
-  short: 'Short',
-  over: 'Over',
-}
-
+/**
+ * What the answers so far added up to.
+ *
+ * The field names are frozen by the suite rather than chosen: `played`,
+ * `optimal` and `capture` are words this product no longer says out loud, and
+ * none of them reaches a screen.
+ */
 export interface TabSummary {
-  /** What the player has actually banked at 65. Never falls. */
+  /** Projected value at 65 of the answers that were right. Never falls. */
   total: number
-  /** Calls answered for real. Practice runs are not counted. */
+  /** Answers that counted. Practice runs never do. */
   played: number
-  /** How many were the best play. */
+  /** How many of them were right. */
   optimal: number
-  /** 0-1. Share of calls played optimally. */
+  /** 0-1. Share of the answers that were right. */
   ratio: number
-  /** Consecutive days played, counted back from the most recent one. */
+  /** Consecutive days answered, counted back from the most recent one. */
   streak: number
   /** What the misses cost at 65, as a positive number. */
   missed: number
-  /** 0-1. Of everything the best plays were worth, the share actually taken. */
+  /** 0-1. Of everything the right answers were worth, the share taken. */
   capture: number
 }
 
 /**
- * The identity number.
+ * The running total, and the one piece of softening in the product.
  *
- * The Tab only moves on a good decision. A fumbled call adds nothing and takes
- * nothing away, which is the one piece of softening in the whole product and it
- * is deliberate: a running total that can fall is a number people stop opening,
- * and the sting of a bad call has already been delivered, in red, on the
- * outcome screen. What a miss costs is carried separately as `missed`, so the
- * screen can still show it without letting it eat the headline.
+ * A wrong answer adds nothing and takes nothing away. A total that can fall is
+ * a number people stop opening, and the cost of a wrong answer has already
+ * been shown, once, on the screen where it could be checked against the
+ * figures that produced it. What a miss cost is carried separately as
+ * `missed`, so it can still be stated without eating anything.
  */
 export function tabSummary(all: CallResult[]): TabSummary {
-  // Practice is dropped here rather than trusted to every caller. A replay of a
-  // call the player already closed, or one opened from a shared link, must not
+  // Practice is dropped here rather than trusted to every caller. A second run
+  // at a question already answered, or one opened from a shared link, must not
   // move this number — and "the caller filters it" is a comment, not a
-  // guarantee: the one time it is forgotten, the Tab silently inflates and the
-  // only number the product asks to be believed is wrong.
+  // guarantee: the one time it is forgotten the total silently inflates.
   const results = all.filter((r) => !r.practice)
 
   let total = 0
@@ -65,12 +68,12 @@ export function tabSummary(all: CallResult[]): TabSummary {
       total += r.at65
       optimal += 1
     } else {
-      // delta is signed: overshooting can project to *more* at 65 while still
-      // being the wrong call, so only genuine shortfalls are counted as cost.
+      // delta is signed: an answer past the right one can project to *more* at
+      // 65 while still being wrong, so only genuine shortfalls count as cost.
       missed += Math.max(0, -r.delta)
     }
     captured += r.at65
-    // delta = this play minus the best play, so the best play is at65 - delta.
+    // delta = this answer minus the right one, so the right one is at65 - delta.
     available += r.at65 - r.delta
   }
 
@@ -83,19 +86,23 @@ export function tabSummary(all: CallResult[]): TabSummary {
     ratio: played > 0 ? optimal / played : 0,
     streak: streakOf(results),
     missed,
-    // Capped at 1: an "over" call can be worth more at 65 than the best play
-    // and still be wrong, and a capture rate above 100% would read as a score.
+    // Capped at 1: an answer past the right one can be worth more at 65 and
+    // still be wrong, and a share above 100% would read as a score.
     capture: available > 0 ? Math.min(1, captured / available) : 0,
   }
 }
 
 /**
- * Consecutive days played, counted back from the most recent day.
+ * Consecutive days answered, counted back from the most recent day.
  *
- * Deliberately not measured against today: this is pure, and a streak that
- * silently reset at 6am would make the number depend on when the screen was
- * opened rather than on what the player did. A missed day ends the streak the
- * moment the next call is answered, which is when it is true.
+ * Nothing renders this any more — a day streak is a retention trick, and days
+ * are the wrong unit for a set that ends at ten. It survives because it is
+ * pure, correct and covered, and because the schedule is still one a day: the
+ * moment anything needs to know whether yesterday was used, this is the answer
+ * rather than a second implementation of it.
+ *
+ * Deliberately not measured against today. A streak that silently reset at 6am
+ * would depend on when the screen was opened rather than on what was done.
  */
 function streakOf(results: CallResult[]): number {
   const days = [...new Set(results.map((r) => r.day))].sort().reverse()
@@ -110,126 +117,113 @@ function streakOf(results: CallResult[]): number {
 }
 
 /**
- * The Tab.
+ * My progress.
  *
- * One hero number and the ledger that produced it. Every row is a call the
- * player closed, so a year of this is the Wrapped: a receipt for the year,
- * built from receipts.
+ * The set is ten questions, so this screen counts questions and errands, both
+ * of which have an end. It replaces a hero dollar figure, a day streak and a
+ * fourteen-day attendance strip: three different ways of measuring an infinite
+ * daily habit, on a product that is finished after ten.
+ *
+ * The list is the whole set in order, not a ledger of what was answered. A row
+ * nobody has reached still says what it will ask, because the same ten
+ * questions are already listed on the home screen and hiding them here would
+ * only make the page shorter than the thing it is describing.
  */
 export function Tab({
   results,
-  profile,
+  calls,
+  actions,
   onClose,
+  onToggleAction,
 }: {
-  /** Answers, oldest first. Practice runs are ignored, wherever they are filtered. */
+  /** Answers, oldest first. Practice runs are dropped here, wherever else they are. */
   results: CallResult[]
-  profile: Profile
+  /** The whole set, in the order it is asked in. */
+  calls: Call[]
+  /** Where each errand stands, by question id. Missing means not started. */
+  actions: Record<number, ActionState>
   onClose: () => void
+  onToggleAction: (callId: number, state: ActionState) => void
 }) {
-  const summary = useMemo(() => tabSummary(results), [results])
-  // Newest first: the last thing they did is the thing they came to see. Same
-  // filter as the summary, or the ledger would show rows the hero number did
-  // not count and the screen would appear to have lost money.
-  const rows = useMemo(() => results.filter((r) => !r.practice).reverse(), [results])
-  const years = Math.max(0, RETIRE_AT - profile.age)
+  // Distinct questions, not results: the denominator is the set, so answering
+  // the same question twice must never read as two tenths of it.
+  const answered = useMemo(
+    () => new Set(results.filter((r) => !r.practice).map((r) => r.callId)),
+    [results],
+  )
 
-  // Attendance, not score. A fortnight is long enough that a gap is visible and
-  // short enough that it stays a strip rather than a chart — and on day one it
-  // is thirteen empty slots and one filled, which reads as a row with room in
-  // it rather than as a screen that failed to load.
-  const attendance = useMemo(() => {
-    const played = new Set(results.filter((r) => !r.practice).map((r) => r.day))
-    const today = compoundDay()
-    return recentDays(14).map((day) => ({
-      day,
-      played: played.has(day),
-      today: day === today,
-    }))
-  }, [results])
+  // Counted across the set rather than over `actions`, so a state left behind
+  // by a question that has since left the library cannot inflate the headline.
+  const done = useMemo(
+    () => calls.filter((c) => answered.has(c.id) && actions[c.id] === 'done').length,
+    [calls, actions, answered],
+  )
 
   return (
     <div className="tab scroll">
       <header className="tab-head">
-        <h1 className="tab-title">The Tab</h1>
+        <h1 className="tab-title">My progress</h1>
         <button className="tab-close data press" onClick={onClose}>
           Close
         </button>
       </header>
 
-      <p className="data-sm">Banked at 65</p>
-      {/* Accent means money captured. An empty tab in acid lime would be the
-          product congratulating someone for nothing. */}
-      <p className="tab-hero num" data-zero={summary.total === 0 ? '' : undefined}>
-        {moneyCompact(summary.total)}
+      <p className="data-sm">Where you are</p>
+      {/* A count, not a currency. It is true on the first day, it means the
+          same thing on the last one, and it has a finish line in it. */}
+      <p className="tab-hero num">
+        {answered.size} of {calls.length}
       </p>
-      {/* Before the first call there is nothing true to say here, and 0/0 in a
-          tile reads as a score of zero rather than as an empty ledger. */}
-      {summary.played > 0 && (
-        <>
-          <p className="tab-sub data-sm num">
-            {summary.optimal} optimal {summary.optimal === 1 ? 'call' : 'calls'} · {years} years to
-            65
-          </p>
+      <p className="tab-note">
+        answered
+        {/* Only said once there is one. "0 things done" under a screen called
+            progress is a scolding, and it is the reader's first day. */}
+        {done > 0 && (
+          <>
+            {' · '}
+            <span className="tab-note-done num">
+              {done} {done === 1 ? 'thing' : 'things'} done
+            </span>
+          </>
+        )}
+      </p>
 
-          <div className="tile-row tab-stats">
-            <div className="tile">
-              <p className="tile-k">Streak</p>
-              <p className="tile-v num">{summary.streak}</p>
-            </div>
-            <div className="tile">
-              <p className="tile-k">Optimal</p>
-              <p className="tile-v num">
-                {summary.optimal}/{summary.played}
+      {answered.size === 0 && (
+        <p className="tab-empty">Answer one and it lands here.</p>
+      )}
+
+      <ol className="tab-set">
+        {calls.map((call, i) => {
+          const isAnswered = answered.has(call.id)
+          const state = actions[call.id] ?? 'open'
+          return (
+            <li className="tab-item" key={call.id} data-answered={isAnswered ? '' : undefined}>
+              <p className="tab-q">
+                <span className="tab-no data-sm num">{i + 1}</span>
+                <span className="tab-q-t">{call.question}</span>
               </p>
-            </div>
-            <div className="tile">
-              <p className="tile-k">Captured</p>
-              <p className="tile-v num">{Math.round(summary.capture * 100)}%</p>
-            </div>
-          </div>
-        </>
-      )}
 
-      {summary.missed > 0 && (
-        <p className="tab-missed data-sm num">
-          {moneyCompact(summary.missed)} left on the table
-        </p>
-      )}
+              {!isAnswered && <p className="tab-waiting data-sm">Not answered yet</p>}
 
-      <section className="tab-attendance">
-        <p className="data-sm">Last 14 days</p>
-        <ol className="tab-days">
-          {attendance.map((d) => (
-            <li
-              className="tab-day"
-              key={d.day}
-              data-played={d.played ? '' : undefined}
-              data-today={d.today ? '' : undefined}
-            />
-          ))}
-        </ol>
-      </section>
-
-      {rows.length === 0 ? (
-        <p className="tab-empty">Lock in a call and it lands here.</p>
-      ) : (
-        <ol className="tab-rows">
-          {rows.map((r, i) => (
-            <li className="tab-row" key={`${r.day}-${r.callId}-${i}`}>
-              <span className="tab-no data-sm num">No.{callNumber(r.day)}</span>
-              <span className="tab-date data-sm num">{formatCallDate(r.day)}</span>
-              <span className="tab-chip" data-v={r.verdict}>
-                {VERDICT_LABEL[r.verdict]}
-              </span>
-              <span className="tab-delta num" data-v={r.verdict}>
-                {r.verdict === 'optimal'
-                  ? `+${moneyCompact(r.at65)}`
-                  : `${r.delta < 0 ? '−' : '+'}${moneyCompact(Math.abs(r.delta))}`}
-              </span>
+              {isAnswered && (
+                <>
+                  {/* The instructions are only here while they are still worth
+                      following. Once an errand is finished or set aside the
+                      chips say so, and repeating the errand under them would
+                      make the page grow as the work shrinks. */}
+                  {state === 'open' && <p className="tab-do">{call.action}</p>}
+                  <ActionPicker
+                    callId={call.id}
+                    state={state}
+                    label={`The thing to do about question ${i + 1}`}
+                    onChange={onToggleAction}
+                  />
+                </>
+              )}
             </li>
-          ))}
-        </ol>
-      )}
+          )
+        })}
+      </ol>
     </div>
   )
 }

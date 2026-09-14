@@ -1,73 +1,206 @@
+/*
+ * The reveal scrolls, which the question screen never does. There is more to
+ * say after an answer than before one, and the alternative — cutting the
+ * comparison or the errand to fit 874px — cuts the two things the screen is
+ * for.
+ */
 .outcome {
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
-  padding: calc(var(--sa-top) + var(--s-6)) var(--gutter) calc(var(--sa-bottom) + var(--s-6));
+  gap: var(--s-5);
+  padding: calc(var(--sa-top) + var(--s-5)) var(--gutter) calc(var(--sa-bottom) + var(--s-6));
   background: var(--bg);
 }
 
-/* A solid block, not a pill. Rounded and tinted would soften a verdict that is
-   supposed to land. */
+.outcome-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex: none;
+}
+
 .outcome-chip {
-  align-self: flex-start;
-  padding: 7px var(--s-3);
+  padding: 6px var(--s-3);
   border-radius: var(--r);
   font: var(--t-data);
   text-transform: uppercase;
   letter-spacing: var(--track-data);
   color: var(--on-accent);
   background: var(--accent);
+  white-space: nowrap;
 }
 
+/*
+ * A miss is quiet. The accent is kept for a right answer so that it still
+ * means something, but under and over get a surface chip rather than a red
+ * one: a screaming failure state at the top of the page is read as a verdict
+ * on the reader, and someone being judged stops reading the part underneath
+ * that explains where the number came from.
+ */
 .outcome-chip[data-v='short'],
 .outcome-chip[data-v='over'] {
-  background: var(--loss);
-  color: #fff;
-}
-
-.outcome-hero {
-  font: var(--t-hero);
-  font-size: 62px;
-  line-height: 0.9;
-  color: var(--accent);
-}
-
-.outcome-hero[data-v='short'],
-.outcome-hero[data-v='over'] {
-  color: var(--loss);
-}
-
-.outcome-line {
-  font: var(--t-body);
+  background: var(--surface-2);
   color: var(--fg-2);
-  max-width: 32ch;
 }
 
-.outcome-compare .tile[data-best] .tile-v {
+/* ---- The headline ------------------------------------------------------------ */
+
+.outcome-said {
+  flex: none;
+  font: var(--t-display);
+  font-size: 28px;
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  text-wrap: balance;
+}
+
+.outcome-said-yours {
+  color: var(--fg);
+}
+
+/* The answer is the half that has to survive a screenshot, so it is the half
+   that carries the accent. */
+.outcome-said-answer {
   color: var(--accent);
 }
 
-/* ---- Crowd ------------------------------------------------------------------- */
+.outcome-said-note {
+  flex: none;
+  margin-top: calc(var(--s-3) * -1);
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: var(--body);
+  font-size: 12px;
+  color: var(--fg-3);
+}
 
+/* ---- Why --------------------------------------------------------------------- */
+
+.outcome-why,
+.outcome-do,
+.outcome-rule,
 .outcome-crowd {
+  flex: none;
   display: flex;
   flex-direction: column;
+  gap: var(--s-3);
+}
+
+.outcome-kicker {
+  color: var(--fg-3);
+}
+
+.outcome-mechanism {
+  font: var(--t-body);
+  color: var(--fg-2);
+}
+
+/*
+ * Fixed layout, so the label column cannot be squeezed to nothing by a long
+ * figure and the two value columns always agree with each other across rows.
+ * Everything wraps rather than overflowing: "1 year 11 months" is a legitimate
+ * value here, and a table that scrolls sideways on a phone is a table nobody
+ * reads the right-hand column of.
+ */
+.outcome-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--r);
+}
+
+.outcome-table th,
+.outcome-table td {
+  padding: var(--s-2) var(--s-3);
+  text-align: right;
+  vertical-align: bottom;
+  font: var(--t-data);
+  color: var(--fg);
+}
+
+/*
+ * The label column. Courier at this tracking is wide — EMPLOYER / YR is
+ * thirteen characters and wants 130px of them — so it gets nearly half the
+ * table and the figures take what is left. Only the longest label in the set
+ * (SHOCK COVERED / YR) then runs to two lines.
+ */
+.outcome-corner {
+  width: 46%;
+}
+
+.outcome-table thead th {
+  padding-top: var(--s-3);
+}
+
+.outcome-col-k,
+.outcome-col-v {
+  display: block;
+}
+
+.outcome-col-k {
+  color: var(--fg-3);
+}
+
+.outcome-col-v {
+  font: var(--t-data);
+  color: var(--fg);
+  margin-top: 2px;
+}
+
+.outcome-table [data-answer] .outcome-col-v,
+.outcome-table td[data-answer] {
+  color: var(--accent);
+}
+
+/* Beats the right-alignment the figures set above: a label reads from the
+   left edge, a figure reads from its last digit. */
+.outcome-table .outcome-row-k {
+  text-align: left;
+  font: var(--t-data-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-data-wide);
+  color: var(--fg-3);
+}
+
+.outcome-table tbody tr:last-child th,
+.outcome-table tbody tr:last-child td {
+  padding-bottom: var(--s-3);
+}
+
+/* ---- Do this week ------------------------------------------------------------ */
+
+/*
+ * The one bordered box on the screen. Everything else sits on a surface; this
+ * is drawn around instead, because it is the only element that asks for
+ * something rather than explaining something, and it has to be findable by
+ * someone scrolling back two days later.
+ */
+.outcome-do {
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r);
+  padding: var(--s-4);
   gap: var(--s-2);
 }
 
-.outcome-percentile {
-  color: var(--fg-2);
+.outcome-do .outcome-kicker {
+  color: var(--accent);
 }
 
-/* ---- Rule -------------------------------------------------------------------- */
+.outcome-do-text {
+  font: var(--t-body);
+  font-size: 16px;
+  color: var(--fg);
+}
+
+/* ---- The rule ---------------------------------------------------------------- */
 
 .outcome-rule {
   background: var(--surface);
   border-radius: var(--r);
   padding: var(--s-4);
-  display: flex;
-  flex-direction: column;
   gap: var(--s-2);
 }
 
@@ -79,10 +212,65 @@
   text-wrap: balance;
 }
 
-/* ---- Commit ------------------------------------------------------------------ */
+/* ---- The crowd --------------------------------------------------------------- */
+
+.outcome-crowd {
+  gap: var(--s-2);
+}
+
+/*
+ * The chart used to be captioned with a percentile against everyone else who
+ * had answered. Nobody else has answered, and there is no backend that could
+ * have counted them if they had. What the bars actually are is an authored
+ * prior from published research, so that is what the line under them says.
+ */
+.outcome-source {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: var(--body);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--fg-3);
+  margin-top: var(--s-1);
+}
+
+/* ---- Make it yours ----------------------------------------------------------- */
+
+/*
+ * Quiet on purpose. It is an offer, not a gate, and it appears after the
+ * figures it would change rather than in front of them — the old build asked a
+ * stranger for a salary before it had told her what the app was.
+ */
+.outcome-personalise {
+  flex: none;
+  align-self: flex-start;
+  text-align: left;
+  padding: var(--s-2) 0;
+  font: var(--t-body-sm);
+  color: var(--fg-2);
+  text-decoration: underline;
+  text-decoration-color: var(--fg-3);
+  text-underline-offset: 3px;
+}
+
+/* ---- Fine print and commit --------------------------------------------------- */
+
+.outcome-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.outcome-fine {
+  font-family: var(--body);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+}
 
 .outcome-print {
-  margin-top: auto;
   flex: none;
   height: 58px;
   background: var(--paper);
@@ -91,13 +279,4 @@
   font: var(--t-title);
   text-transform: uppercase;
   letter-spacing: var(--track-display);
-}
-
-.outcome-assumptions {
-  flex: none;
-  color: var(--fg-3);
-  text-transform: none;
-  letter-spacing: 0.02em;
-  font-family: var(--body);
-  font-size: 11px;
 }

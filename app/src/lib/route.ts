@@ -1,7 +1,7 @@
 /**
  * Deep links.
  *
- * `compound.day/142` opens call 142 so a recipient can play it before seeing
+ * `napkin.example/4` opens question 4 so a recipient can answer it before seeing
  * anyone's answer. That is the whole point of the link in a shared receipt: a
  * link that opened today's call instead would make the share useless the moment
  * the day rolled over, and a link that revealed the sender's answer would remove

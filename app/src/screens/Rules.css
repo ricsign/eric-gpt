@@ -7,6 +7,12 @@
   background: var(--bg);
 }
 
+/* On screen the app is all around this page and says what it is. On paper
+   nothing does, so this line exists for the printed copy only. */
+.rules-mark {
+  display: none;
+}
+
 .rules-head {
   display: flex;
   align-items: baseline;
@@ -42,62 +48,95 @@
   margin-top: var(--s-4);
 }
 
+/* ---- The list ----------------------------------------------------------------
+ * One block per answered question: what was asked, the rule it taught, the
+ * errand that makes the rule real, and where you are with it. The four belong
+ * together — a rule with no errand is a thing to nod at, and an errand with no
+ * rule is a chore with no reason attached.
+ */
+
 .rules-list {
   display: flex;
   flex-direction: column;
   /* Hairline is the background showing through a 1px gap, never a border. */
   gap: 1px;
+  flex: none;
 }
 
 .rules-row {
   display: flex;
   flex-direction: column;
-  gap: var(--s-1);
-  padding: var(--s-3) var(--s-4);
+  gap: var(--s-3);
+  padding: var(--s-4);
   background: var(--surface);
   border-radius: var(--r);
 }
 
-.rules-meta {
+.rules-q {
   display: flex;
-  gap: var(--s-2);
+  gap: var(--s-3);
+  align-items: baseline;
 }
 
 .rules-no {
+  color: var(--fg-3);
+  flex: none;
+  min-width: 2ch;
+}
+
+.rules-q-t {
+  font: var(--t-body-sm);
   color: var(--fg-2);
 }
 
-/* The payload. Sentence case, because this is the one thing here meant to be
-   read as a sentence rather than scanned as data. */
+/*
+ * The payload. Set as display type rather than body copy because it is the
+ * one line here that is meant to be remembered rather than read — and it is
+ * the same treatment the rule was given on the screen where it was earned, so
+ * the reader recognises it.
+ */
 .rules-text {
-  font: var(--t-body);
-  color: var(--fg);
+  font: var(--t-title);
+  text-transform: uppercase;
+  letter-spacing: var(--track-display);
+  color: var(--accent);
   text-wrap: balance;
 }
 
-.rules-tag {
-  margin-left: auto;
-  color: var(--accent);
-  opacity: 0.8;
+.rules-do {
+  font: var(--t-body);
+  color: var(--fg-2);
 }
 
+/* Finished instructions are still printed, because the page is a record of
+   what you decided to do, but they stop competing with the ones that are not. */
+.rules-row[data-state='done'] .rules-do {
+  color: var(--fg-3);
+}
 
-/* ---- Still sealed ------------------------------------------------------------
- * The shape of the collection without any of its contents. A rule's wording is
- * the reward for playing its call, so a sealed row carries only a domain and a
- * redacted bar — enough to show the page has a length, never enough to spoil a
- * call the player has not reached.
+/* Set aside, and quietly. This is the row a reader chose to be honest about;
+   it should look settled, never struck out. */
+.rules-row[data-state='na'] {
+  opacity: 0.72;
+}
+
+/* ---- Still to come -----------------------------------------------------------
+ * The questions not yet reached, each one stating what it will ask. The
+ * wording of its rule is the part you get by running into it, so that is the
+ * only thing under the bar. Hiding the question as well — which is what this
+ * section used to do, showing nothing but "tax" and "housing" — spoiled
+ * nothing and explained nothing, on a page someone opens to find out what the
+ * product is going to give them.
  */
 .rules-sealed {
   margin-top: var(--s-6);
   padding-top: var(--s-4);
   position: relative;
+  flex: none;
 }
 
-/* The divider. A 1px block of the lighter ground rather than a border: a border
-   would round with the box and soften at the ends, and `--line` — which an
-   earlier version asked for here — is not a token, so the rule never drew at
-   all. */
+/* The divider. A 1px block of the lighter ground rather than a border: a
+   border would round with the box and soften at the ends. */
 .rules-sealed::before {
   content: '';
   position: absolute;
@@ -117,35 +156,33 @@
 
 .rules-seal {
   display: flex;
-  align-items: center;
-  gap: var(--s-3);
+  flex-direction: column;
+  gap: var(--s-2);
   background: var(--surface);
   padding: var(--s-3) var(--s-4);
+  opacity: 0.72;
 }
 
-/* Dimmed, but still a readable label: the domain is the only thing a sealed row
-   has to say, so fading it to the point of illegibility would leave nine rows
-   of nothing. The redaction bar carries the "locked" reading instead. */
-.rules-seal .rules-tag {
-  margin-left: 0;
-  color: var(--fg-2);
-}
-
-/* The redaction: one solid bar, sized to a plausible rule so the column has a
-   rhythm rather than a ragged edge, and pushed right so the domains stay
-   left-aligned. Solid rather than the dashed pattern it used to be, because
-   that pattern was a repeating gradient and this product does not have
-   gradients in it. */
+/* The redaction: one solid bar where the rule will be, sized to a plausible
+   one so the column has a rhythm rather than a ragged edge. Solid rather than
+   a dashed pattern, because this product does not have gradients in it. */
 .rules-seal-bar {
-  margin-left: auto;
   width: 46%;
   height: 10px;
   border-radius: 2px;
   background: var(--fg-3);
   opacity: 0.5;
+  margin-left: calc(2ch + var(--s-3));
 }
 
-/* A sealed rule is not a rule. It has no place on a printed reference. */
+.rules-foot {
+  margin-top: var(--s-5);
+  color: var(--fg-3);
+  flex: none;
+}
+
+/* A rule nobody has reached is not a rule. It has no place on a printed
+   reference, and neither does a control for an errand that does not exist. */
 @media print {
   .rules-sealed {
     display: none;
@@ -161,7 +198,9 @@
  *
  * Every shell selector is prefixed with `body` purely to out-specify the rules it
  * is undoing: those live in other stylesheets whose load order is decided by the
- * bundler, and a bare class here would win or lose depending on it.
+ * bundler, and a bare class here would win or lose depending on it. The same
+ * prefix is what lets this file restyle the shared errand control, which brings
+ * its own stylesheet.
  */
 @media print {
   html,
@@ -203,14 +242,21 @@
     gap: 12pt;
   }
 
+  .rules-mark {
+    display: block;
+    color: #555;
+  }
+
   .rules-title,
   .rules-text,
+  .rules-do,
   .rules-no {
     color: #000;
   }
 
   .rules-count,
-  .rules-meta {
+  .rules-q-t,
+  .rules-foot {
     color: #555;
   }
 
@@ -220,20 +266,44 @@
 
   .rules-row {
     background: none;
-    padding: 8pt 0;
+    padding: 10pt 0;
     /* Print has no lighter ground to show a gap through, so the hairline
        becomes an actual rule here — the one place in the product it is one. */
     border-bottom: 0.5pt solid #b9b3a7;
-    /* A rule and its number must never be split across two pages. */
+    /* A rule, its errand and its state must never split across two pages. */
     break-inside: avoid;
+    /* Opacity would grey a whole block on paper, where there is no surface
+       behind it to soften against. */
+    opacity: 1;
   }
 
   .rules-text {
-    font-size: 12pt;
+    font-size: 13pt;
   }
 
-  .rules-tag {
-    color: #555;
-    opacity: 1;
+  .rules-do {
+    font-size: 11pt;
+  }
+
+  /*
+   * The control prints as a row of boxes with one of them ticked. That is the
+   * point of carrying it onto paper at all: the sheet in the glovebox should
+   * say which errands were already dealt with, and leave room to change the
+   * answer with a pen.
+   */
+  body .rules .action-opt {
+    background: none;
+    border: 0.5pt solid #b9b3a7;
+    border-radius: 0;
+    color: #777;
+    min-height: 0;
+    padding: 2pt 5pt;
+    flex: 0 0 auto;
+  }
+
+  body .rules .action-opt[data-on] {
+    border-color: #000;
+    color: #000;
+    font-weight: 700;
   }
 }

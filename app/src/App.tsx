@@ -142,6 +142,8 @@ export function App() {
                 answered={answered}
                 nextId={openToday ? nextId : null}
                 onStart={open}
+                onList={() => setScreen('rules')}
+                onProgress={() => setScreen('tab')}
               />
             )}
 
