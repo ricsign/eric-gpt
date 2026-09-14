@@ -341,7 +341,7 @@ export const CALLS: Call[] = [
     ],
     compute: 'feeDragCall',
     optimal: 3,
-    rule: 'Pay basis points, not percent. Fees compound too.',
+    rule: 'Check the yearly fee. Same stocks, cheaper.',
     action:
       'Find the yearly fee on every fund you hold. Anything over $50 a year per $10,000 has a cheaper twin.',
     // Counted by person rather than by dollar, which is the distinction that makes

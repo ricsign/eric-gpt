@@ -158,6 +158,16 @@ export type Optimal =
   | { min: number; max: number }
   | ((profile: Profile) => number | { min: number; max: number })
 
+/**
+ * Where the player is with a question's action.
+ *
+ * "na" is load-bearing rather than a tidy third option. A reader with no job
+ * at all told us five of the ten questions were not about their life; being
+ * able to say so, and have the page agree, is the difference between a list
+ * that shrinks and a list that accuses.
+ */
+export type ActionState = 'open' | 'done' | 'na'
+
 export type Verdict = 'optimal' | 'short' | 'over'
 
 /** A locked-in answer. Immutable once written. */

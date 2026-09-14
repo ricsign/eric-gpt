@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { CallResult, Profile } from '../calls/types'
+import type { ActionState, CallResult, Profile } from '../calls/types'
 import { DEFAULT_PROFILE } from '../calls/types'
 
 /**
@@ -34,12 +34,21 @@ interface State {
    * distribution — see lib/crowd.ts for how the weighting decays.
    */
   localCrowd: Record<number, number[]>
+  /**
+   * Where the player is with each question's "do this week" errand.
+   *
+   * Separate from `results` because a result is a fact about a moment and is
+   * immutable once written, while an action is a live piece of state the
+   * player edits for as long as it matters to them.
+   */
+  actions: Record<number, ActionState>
   settings: Settings
 
   setProfile: (p: Profile) => void
   /** Records an answer. A repeat of a call already played is ignored. */
   lockIn: (result: CallResult, steps: number) => void
   observeCrowd: (callId: number, bucket: number, steps: number) => void
+  setAction: (callId: number, state: ActionState) => void
   setSettings: (patch: Partial<Settings>) => void
   reset: () => void
 }
@@ -48,6 +57,7 @@ const INITIAL = {
   profile: null as Profile | null,
   results: [] as CallResult[],
   localCrowd: {} as Record<number, number[]>,
+  actions: {} as Record<number, ActionState>,
   settings: { notifyHour: 8, notifyAsked: false, haptics: true } satisfies Settings,
 }
 
@@ -57,6 +67,9 @@ export const useStore = create<State>()(
       ...INITIAL,
 
       setProfile: (profile) => set({ profile }),
+
+      setAction: (callId, state) =>
+        set((s) => ({ actions: { ...s.actions, [callId]: state } })),
 
       lockIn: (result, steps) => {
         const { results } = get()
@@ -85,8 +98,11 @@ export const useStore = create<State>()(
       reset: () => set({ ...INITIAL }),
     }),
     {
-      name: 'compound',
-      version: 1,
+      // Renamed with the product. A returning player from the Compound build
+      // starts clean rather than resuming a half-finished set under questions
+      // that have since been rewritten.
+      name: 'napkin',
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       // Zustand's persist already swallows storage errors, which matters here:
       // private windows and blocked site data both throw on getItem, and
@@ -95,6 +111,7 @@ export const useStore = create<State>()(
         profile: s.profile,
         results: s.results,
         localCrowd: s.localCrowd,
+        actions: s.actions,
         settings: s.settings,
       }),
     },

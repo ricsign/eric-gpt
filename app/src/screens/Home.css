@@ -1,0 +1,100 @@
+.home {
+  padding: var(--s-6) var(--s-4) var(--s-5);
+}
+
+.home-head {
+  margin-bottom: var(--s-6);
+}
+
+.home-mark {
+  font: var(--t-display);
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+  margin-bottom: var(--s-4);
+}
+
+/* The one line that has to land in the first second. Sized as a headline
+   rather than body copy because it is the product, not a description of it. */
+.home-pitch {
+  font: var(--t-display);
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--accent);
+  margin-bottom: var(--s-3);
+}
+
+.home-sub {
+  font: var(--t-body);
+  color: var(--fg-2);
+  margin-bottom: var(--s-3);
+}
+
+/* The three objections a stranger arrives with — how long, do I have to sign
+   up, where does my money data go — answered before they are asked. */
+.home-terms {
+  color: var(--fg-3);
+}
+
+.home-progress {
+  color: var(--fg-3);
+  margin-bottom: var(--s-2);
+}
+
+.home-list {
+  display: flex;
+  flex-direction: column;
+  /* Hairline is the background showing through a gap, never a border. */
+  gap: 1px;
+}
+
+.home-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 0;
+  padding: var(--s-4);
+  color: var(--fg-1);
+  font: inherit;
+  /* 44px is the smallest reliably tappable target on a phone. */
+  min-height: 56px;
+}
+
+.home-no {
+  color: var(--fg-3);
+  flex: none;
+  min-width: 2ch;
+}
+
+.home-q {
+  flex: 1;
+  font: var(--t-body);
+}
+
+.home-state {
+  flex: none;
+  color: var(--fg-3);
+}
+
+.home-row[data-state='open'] .home-state {
+  color: var(--accent);
+}
+
+.home-row[data-state='done'] .home-q {
+  color: var(--fg-2);
+}
+
+/* Locked rows stay readable. Fading a question to illegibility would leave
+   nine rows of nothing and defeat the point of listing the set at all. */
+.home-row[data-state='locked'] {
+  opacity: 0.55;
+}
+
+.home-foot {
+  margin-top: var(--s-5);
+  color: var(--fg-3);
+}

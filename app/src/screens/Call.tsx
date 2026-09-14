@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BlockBar } from '../ui/BlockBar'
 import { COMPUTE } from '../calls/compute'
 import { resolveFact, stepCount, type Call, type Profile } from '../calls/types'
-import { money, moneyCompact } from '../lib/format'
-import { formatCountdown, msUntilNextCall } from '../lib/schedule'
+import { money } from '../lib/format'
 import { haptic } from '../lib/haptics'
 import './Call.css'
 
@@ -22,32 +21,20 @@ import './Call.css'
  */
 export function CallScreen({
   call,
-  callNo,
+  questionNo,
+  total,
   profile,
-  playedCount,
   onLockIn,
 }: {
   call: Call
-  /** The global call number — No.142 — not the library index. */
-  callNo: number
+  /** Position in the set of ten, one-based. */
+  questionNo: number
+  total: number
   profile: Profile
-  /** Real plays recorded for this call, or null when there is no live count. */
-  playedCount: number | null
   onLockIn: (value: number) => void
 }) {
   const [value, setValue] = useState(call.variable.start)
   const [touched, setTouched] = useState(false)
-  const [remaining, setRemaining] = useState(() => msUntilNextCall())
-
-  // The countdown only needs to be right to the second, and only while this
-  // screen is mounted. Started in render it would outlive every visit — the
-  // player passes through here once a day for as long as they keep the app
-  // open, and each pass would leave another timer ticking against a screen
-  // that no longer exists.
-  useEffect(() => {
-    const id = window.setInterval(() => setRemaining(msUntilNextCall()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
 
   const compute = COMPUTE[call.compute]
   const outcome = useMemo(
@@ -60,15 +47,16 @@ export function CallScreen({
   return (
     <div className="call">
       <header className="call-head">
-        <span className="data-sm">No.{callNo}</span>
-        {playedCount !== null ? (
-          <span className="data-sm num">{playedCount.toLocaleString('en-US')} played</span>
-        ) : (
-          <span className="data-sm num">closes {formatCountdown(remaining)}</span>
-        )}
+        <span className="data-sm num">
+          Question {questionNo} of {total}
+        </span>
       </header>
 
       <h1 className="call-title">{call.title}</h1>
+      {/* The line the screen was missing. Without it a stranger sees a
+          headline, a bar and a number, and has to infer what is being asked
+          of them — which six reviewers independently said they could not. */}
+      <p className="call-question">{call.question}</p>
 
       <div className="tile-row call-facts">
         {call.fixed.map((f) => (
@@ -114,14 +102,9 @@ export function CallScreen({
           <p className="tile-v num">{money(outcome.cost)}<span className="tile-unit">/mo</span></p>
         </div>
         <div className="tile" data-good={outcome.benefit > 0 || undefined}>
-          <p className="tile-k">You capture</p>
+          <p className="tile-k">You gain</p>
           <p className="tile-v num">{money(outcome.benefit)}<span className="tile-unit">/yr</span></p>
         </div>
-      </div>
-
-      <div className="call-hero tile">
-        <p className="tile-k">At 65 this is worth</p>
-        <p className="call-hero-v num">{moneyCompact(outcome.at65)}</p>
       </div>
 
       <button

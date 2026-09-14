@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  callIndex,
-  callNumber,
-  compoundDay,
-  EPOCH,
-  formatCountdown,
-  msUntilNextCall,
-  ROLLOVER_HOUR,
-} from './schedule'
+import { EPOCH, ROLLOVER_HOUR, callIndex, callNumber, compoundDay, formatCountdown, msUntilNextCall, nextQuestionId, unlockedToday } from './schedule'
 
 /** Local-time Date, so these tests exercise the same path the app does. */
 const at = (y: number, m: number, d: number, h = 12, min = 0) =>
@@ -120,5 +112,39 @@ describe('the countdown', () => {
     expect(formatCountdown(3_600_000)).toBe('01:00:00')
     expect(formatCountdown(8 * 3_600_000 + 7 * 60_000 + 5_000)).toBe('08:07:05')
     expect(formatCountdown(-5000)).toBe('00:00:00')
+  })
+})
+
+describe('the queue follows the player, not the calendar', () => {
+  const IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+  it('starts everyone at question one, whenever they arrive', () => {
+    // The bug this replaces: callIndex returned authored order only for the
+    // ten days after EPOCH, so from 2026-09-11 a brand-new player's first
+    // screen was whatever the shuffling stride landed on. Arrival date must
+    // not decide which question you meet first.
+    expect(nextQuestionId(IDS, new Set())).toBe(1)
+  })
+
+  it('walks the set in authored order as answers land', () => {
+    expect(nextQuestionId(IDS, new Set([1]))).toBe(2)
+    expect(nextQuestionId(IDS, new Set([1, 2, 3]))).toBe(4)
+    // A gap is filled before moving on: the order is the curriculum.
+    expect(nextQuestionId(IDS, new Set([1, 3, 4]))).toBe(2)
+  })
+
+  it('returns null once the set is finished, because ten is all there is', () => {
+    expect(nextQuestionId(IDS, new Set(IDS))).toBe(null)
+  })
+
+  it('spends one day per answer, and practice never spends one', () => {
+    const today = compoundDay(new Date('2026-09-14T12:00:00'))
+    expect(unlockedToday([], new Date('2026-09-14T12:00:00'))).toBe(true)
+    expect(unlockedToday([today], new Date('2026-09-14T12:00:00'))).toBe(false)
+    // Rollover is 6am, so late the same evening it is still spent...
+    expect(unlockedToday([today], new Date('2026-09-14T23:30:00'))).toBe(false)
+    // ...and still spent just before the rollover next morning.
+    expect(unlockedToday([today], new Date('2026-09-15T05:30:00'))).toBe(false)
+    expect(unlockedToday([today], new Date('2026-09-15T06:30:00'))).toBe(true)
   })
 })

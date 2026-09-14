@@ -1,6 +1,6 @@
 {
-  "name": "Compound — one money call a day",
-  "short_name": "Compound",
+  "name": "Napkin — ten money questions, one a day",
+  "short_name": "Napkin",
   "description": "One money call a day, the same one for everyone. Drag the number, watch your future move, take the receipt.",
   "start_url": "/",
   "scope": "/",

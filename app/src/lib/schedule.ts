@@ -108,3 +108,51 @@ export function recentDays(count: number, day: string = compoundDay()): string[]
     ).padStart(2, '0')}`
   })
 }
+
+/**
+ * Whether the set releases one question a day, or all at once.
+ *
+ * Kept as one constant because it is a live product disagreement, not a
+ * settled fact. The pitch is "ten questions, one a day", and the daily rhythm
+ * is what gives the product a reason to be opened tomorrow. Against that, all
+ * three test readers objected to it unprompted — the content is already
+ * written, they can tell, and one said plainly: "give me a reason for the
+ * pacing or give me the ten." Flip this to false and the gate is gone.
+ */
+export const ONE_A_DAY = true
+
+/**
+ * The next question this player should answer.
+ *
+ * Player-relative, and that is the whole point. The previous scheme indexed
+ * the library by the global day: authored order for the first ten days after
+ * EPOCH, a shuffling stride forever after. Those ten days elapsed on
+ * 2026-09-10, so from the eleventh day onward a brand-new player's first ever
+ * screen was whichever question the stride happened to land on — in practice
+ * a dial asking for fund fees on a portfolio they do not have. The onboarding
+ * sequence the library was ordered for became unreachable for exactly the
+ * people it was written for.
+ *
+ * Now the queue follows the player: the first question in authored order they
+ * have not answered for real. Everyone starts at question one, whenever they
+ * arrive.
+ */
+export function nextQuestionId(
+  orderedIds: number[],
+  answered: Set<number>,
+): number | null {
+  for (const id of orderedIds) if (!answered.has(id)) return id
+  return null
+}
+
+/**
+ * Whether today's question is still waiting, given the days already spent.
+ *
+ * A question answered earlier today closes the set until the next rollover.
+ * Practice — replaying an answered question, or following a shared link —
+ * never counts, so it can never consume a day.
+ */
+export function unlockedToday(answeredDays: string[], now: Date = new Date()): boolean {
+  if (!ONE_A_DAY) return true
+  return !answeredDays.includes(compoundDay(now))
+}
