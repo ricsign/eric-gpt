@@ -249,15 +249,31 @@
 
   .rules-title,
   .rules-text,
-  .rules-do,
-  .rules-no {
+  .rules-do {
     color: #000;
   }
 
   .rules-count,
   .rules-q-t,
+  .rules-no,
   .rules-foot {
     color: #555;
+  }
+
+  /*
+   * On screen a finished errand is dimmed against a dark surface. On paper the
+   * same colour is white ink on white paper: the instruction vanishes and
+   * leaves a hand-sized hole in the page. Anything that has to out-specify a
+   * `[data-state]` rule is prefixed to make sure it does.
+   */
+  body .rules .rules-row[data-state='done'] .rules-do {
+    color: #555;
+  }
+
+  body .rules .rules-row {
+    /* Paper has nothing behind it to fade against, so the row someone set
+       aside prints as solidly as the rest. It is still part of the record. */
+    opacity: 1;
   }
 
   .rules-list {
@@ -301,7 +317,11 @@
     flex: 0 0 auto;
   }
 
+  /* The fill goes too. Most "save as PDF" settings drop background graphics,
+     so a chip that relied on one would print as three identical boxes with
+     nothing ticked; a border and a weight survive either setting. */
   body .rules .action-opt[data-on] {
+    background: none;
     border-color: #000;
     color: #000;
     font-weight: 700;
