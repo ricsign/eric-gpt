@@ -86,7 +86,7 @@ export const CALLS: Call[] = [
   {
     id: 2,
     title: '$500 to spare. Two credit cards to pay.',
-    question: 'How much of the $500 should go to the smaller card?',
+    question: 'How much of your $500 should go to the smaller card?',
     domain: 'debt',
     variable: {
       key: 'toLowerRate',
@@ -383,7 +383,7 @@ export const CALLS: Call[] = [
     optimal: { min: 5, max: 15 },
     rule: 'Rent under five years. Buying costs more.',
     action:
-      'Before you make an offer, write down how long you honestly expect to stay. If it is under five years, run the numbers again.',
+      'Write down how long you honestly expect to stay in the place before you make an offer. Under five years, run the numbers again.',
     // Buyers systematically over-forecast how long they will stay, so the mass sits
     // high: spikes at 5 and 10 (the two numbers anyone says out loud) and a wall at
     // 15 meaning "forever". The honest answer for most people is the sparse left

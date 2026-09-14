@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { COMPUTE, SCENARIO } from './compute'
 import { CALLS } from './registry'
-import { judge, resolveOptimal, stepCount, type Profile } from './types'
+import { DEFAULT_PROFILE, judge, optimalValue, resolveOptimal, stepCount, type Profile } from './types'
 
 /** The best reachable position inside a call's optimal window. */
 function bestInOptimal(
@@ -241,3 +241,66 @@ describe('the card states the scenario the maths actually uses', () => {
     },
   )
 })
+
+describe('every question says what it is asking, and what to do about it', () => {
+  // The two fields added when six reviewers independently reported that they
+  // could not tell what the screen wanted from them. A headline, a bar and a
+  // number is not a question, and an answer with no errand attached is
+  // trivia. These guard the authoring rules that make them useful.
+
+  it.each(CALLS.map((c) => [c.id, c] as const))('question %i is answerable by its own dial', (_id, call) => {
+    expect(call.question.trim().endsWith('?'), call.question).toBe(true)
+    // Second person. A question about "the player" or "a saver" is a case
+    // study; this product only works if it is about the person holding it.
+    expect(/\b(you|your)\b/i.test(call.question), call.question).toBe(true)
+    // Short enough to read in one pass under a headline.
+    expect(call.question.length, call.question).toBeLessThanOrEqual(70)
+    // It must not contain the answer.
+    const answer = String(optimalValue(call.optimal, DEFAULT_PROFILE))
+    expect(call.question.includes(answer) && answer.length > 1).toBe(false)
+  })
+
+  it.each(CALLS.map((c) => [c.id, c] as const))('action %i is an errand, not a principle', (_id, call) => {
+    const first = call.action.split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, '')
+    // An instruction opens on a verb. "You should consider reviewing..." is
+    // the register this is written to avoid.
+    expect(DOING_VERBS.has(first), `action ${call.id} opens on "${first}"`).toBe(true)
+    // Long enough to be specific, short enough to do in an evening.
+    expect(call.action.length).toBeGreaterThan(40)
+    expect(call.action.length).toBeLessThanOrEqual(200)
+    // The rule is the idea and the action is the errand; if they are the same
+    // sentence, one of them is not doing its job.
+    expect(call.action).not.toBe(call.rule)
+  })
+
+  it('never speaks the vocabulary that made the old build unreadable', () => {
+    // Every one of these was flagged by the plain-language review as a term a
+    // normal adult would not know or would misread. They are banned from all
+    // player-facing strings, which is everything on a Call record except the
+    // compute key.
+    const banned = /\b(bps|basis points?|safe harbou?r|optimal|overshot|the tab|expense ratio)\b/i
+    for (const call of CALLS) {
+      for (const [what, text] of [
+        ['title', call.title],
+        ['question', call.question],
+        ['rule', call.rule],
+        ['action', call.action],
+        ['label', call.variable.label],
+        ['assumptions', call.assumptions],
+        ...call.fixed.map((f) => [`fixed ${f.k}`, `${f.k} ${f.v}`] as const),
+      ] as const) {
+        const hit = text.match(banned)
+        expect(hit?.[0], `call ${call.id} ${what}: "${text}"`).toBeUndefined()
+      }
+    }
+  })
+})
+
+/** Verbs an instruction may open on. Anything else is advice, not an errand. */
+const DOING_VERBS = new Set([
+  'add', 'ask', 'bank', 'book', 'call', 'cancel', 'change', 'check', 'choose',
+  'clear', 'compare', 'count', 'divide', 'find', 'fix', 'get', 'give', 'log',
+  'look', 'make', 'move', 'open', 'pay', 'practise', 'put', 'read', 'search',
+  'set', 'sign', 'split', 'start', 'stop', 'switch', 'take', 'tell', 'work',
+  'write',
+])
