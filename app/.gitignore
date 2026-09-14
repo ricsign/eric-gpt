@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Agent scratch files. Double-underscore prefix is the convention for throwaway
+# scripts and probes written during a build; they must never reach history.
+__*

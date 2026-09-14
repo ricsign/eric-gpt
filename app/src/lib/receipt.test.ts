@@ -178,8 +178,13 @@ describe('receiptLines', () => {
 })
 
 describe('receiptText', () => {
+  // Pictographs, dingbats, flag letters, variation selectors, the keycap combiner
+  // and the ZWJ that joins emoji sequences — plus arrows, which are not emoji but
+  // render as one in several chat clients. Written as alternatives rather than one
+  // class because a combining mark inside a character class does not mean what it
+  // looks like it means.
   const EMOJI =
-    /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{200D}\u{20E3}\u{2190}-\u{21FF}]/u
+    /[\u{1F000}-\u{1FAFF}]|[\u{2600}-\u{27BF}]|[\u{2B00}-\u{2BFF}]|[\u{1F1E6}-\u{1F1FF}]|[\u{2190}-\u{21FF}]|[\u{FE00}-\u{FE0F}]|\u{20E3}|\u{200D}/u
 
   const CASES: ReceiptInput[] = [
     BASE,

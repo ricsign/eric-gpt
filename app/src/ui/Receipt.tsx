@@ -39,13 +39,9 @@ export function Receipt({ input }: { input: ReceiptInput }) {
   const clipPath = useMemo(() => tearClipPath(seed, TEAR_DEPTH, TEAR_SEGMENTS), [seed])
   const barcode = useMemo(() => {
     const widths = barcodeWidths(seed)
-    let x = 0
-    // Even indices are ink, odd are paper; only the ink ones need a rect.
-    const bars = widths.flatMap((w, i) => {
-      const at = x
-      x += w
-      return i % 2 === 0 ? [{ x: at, w }] : []
-    })
+    const startOf = (i: number) => widths.slice(0, i).reduce((a, b) => a + b, 0)
+    // Even modules are ink, odd are paper; only the ink ones need a rect.
+    const bars = widths.flatMap((w, i) => (i % 2 === 0 ? [{ x: startOf(i), w }] : []))
     return { bars, units: barcodeUnits(widths) }
   }, [seed])
 
